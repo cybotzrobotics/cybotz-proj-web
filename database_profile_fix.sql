@@ -86,6 +86,8 @@ BEGIN
     NEW.raw_user_meta_data ->> 'full_name',
     CASE 
       WHEN NEW.raw_user_meta_data ->> 'team_number' IS NOT NULL 
+           AND NEW.raw_user_meta_data ->> 'team_number' != ''
+           AND NEW.raw_user_meta_data ->> 'team_number' ~ '^[0-9]+$'
       THEN (NEW.raw_user_meta_data ->> 'team_number')::integer 
       ELSE NULL 
     END,
@@ -129,6 +131,8 @@ BEGIN
     u.raw_user_meta_data ->> 'full_name' as full_name,
     CASE 
       WHEN u.raw_user_meta_data ->> 'team_number' IS NOT NULL 
+           AND u.raw_user_meta_data ->> 'team_number' != ''
+           AND u.raw_user_meta_data ->> 'team_number' ~ '^[0-9]+$'
       THEN (u.raw_user_meta_data ->> 'team_number')::integer 
       ELSE NULL 
     END as team_number,
@@ -159,6 +163,8 @@ BEGIN
     full_name = NEW.raw_user_meta_data ->> 'full_name',
     team_number = CASE 
       WHEN NEW.raw_user_meta_data ->> 'team_number' IS NOT NULL 
+           AND NEW.raw_user_meta_data ->> 'team_number' != ''
+           AND NEW.raw_user_meta_data ->> 'team_number' ~ '^[0-9]+$'
       THEN (NEW.raw_user_meta_data ->> 'team_number')::integer 
       ELSE NULL 
     END,
@@ -175,6 +181,8 @@ BEGIN
       NEW.raw_user_meta_data ->> 'full_name',
       CASE 
         WHEN NEW.raw_user_meta_data ->> 'team_number' IS NOT NULL 
+             AND NEW.raw_user_meta_data ->> 'team_number' != ''
+             AND NEW.raw_user_meta_data ->> 'team_number' ~ '^[0-9]+$'
         THEN (NEW.raw_user_meta_data ->> 'team_number')::integer 
         ELSE NULL 
       END,
