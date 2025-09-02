@@ -1,7 +1,76 @@
 -- FTC Quiz App - Fix User Profile Creation and Leaderboard
 -- Run this in your Supabase SQL Editor
 
--- First, let's create a trigger function to automatically create user profiles
+-- First, create the user_profiles table if it doesn't exist
+CREATE TABLE IF NOT EXISTS user_profiles (
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  username TEXT,
+  full_name TEXT,
+  team_number INTEGER,
+  team_name TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create quiz_attempts table if it doesn't exist
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  season TEXT NOT NULL,
+  score INTEGER NOT NULL,
+  total_questions INTEGER NOT NULL,
+  questions_answered JSONB,
+  time_taken INTEGER, -- in seconds
+  is_guest BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create quiz_questions table if it doesn't exist
+CREATE TABLE IF NOT EXISTS quiz_questions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  season TEXT NOT NULL,
+  question TEXT NOT NULL,
+  options JSONB NOT NULL, -- Array of answer options
+  correct_answer INTEGER NOT NULL, -- Index of correct option
+  explanation TEXT,
+  category TEXT,
+  difficulty TEXT CHECK (difficulty IN ('easy', 'medium', 'hard')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on all tables
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies for user_profiles
+DROP POLICY IF EXISTS "Anyone can read user profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
+
+CREATE POLICY "Anyone can read user profiles" ON user_profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert own profile" ON user_profiles FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own profile" ON user_profiles FOR UPDATE USING (auth.uid() = user_id);
+
+-- RLS policies for quiz_attempts
+DROP POLICY IF EXISTS "Anyone can read quiz attempts" ON quiz_attempts;
+DROP POLICY IF EXISTS "Authenticated users can insert quiz attempts" ON quiz_attempts;
+
+CREATE POLICY "Anyone can read quiz attempts" ON quiz_attempts FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can insert quiz attempts" ON quiz_attempts FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- RLS policies for quiz_questions
+DROP POLICY IF EXISTS "Anyone can read quiz questions" ON quiz_questions;
+DROP POLICY IF EXISTS "Anyone can insert quiz questions" ON quiz_questions;
+DROP POLICY IF EXISTS "Anyone can update quiz questions" ON quiz_questions;
+DROP POLICY IF EXISTS "Anyone can delete quiz questions" ON quiz_questions;
+
+CREATE POLICY "Anyone can read quiz questions" ON quiz_questions FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert quiz questions" ON quiz_questions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update quiz questions" ON quiz_questions FOR UPDATE USING (true);
+CREATE POLICY "Anyone can delete quiz questions" ON quiz_questions FOR DELETE USING (true);
+
+-- Now let's create a trigger function to automatically create user profiles
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
