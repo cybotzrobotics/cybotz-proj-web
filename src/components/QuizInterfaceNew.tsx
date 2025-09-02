@@ -53,7 +53,7 @@ const mockQuestions: Question[] = [
   }
 ]
 
-export default function QuizInterface({ season, onBack, isGuest = false, onComplete }: QuizInterfaceProps) {
+export default function QuizInterfaceNew({ season, onBack, isGuest = false, onComplete }: QuizInterfaceProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
@@ -87,15 +87,12 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
           }
         }
 
-        // Load questions from database - we now know it uses 'question' column
+        // Load questions from database
         const { data: questionsData, error } = await supabase
           .from('quiz_questions')
-          .select('id, question, options, correct_answer, explanation, category, difficulty, season')
+          .select('*')
           .eq('season', season)
           .limit(10)
-
-        console.log('Questions data from database:', questionsData)
-        console.log('Database error:', error)
 
         if (error) {
           console.error('Error loading questions:', error)
@@ -103,20 +100,17 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
         } else if (questionsData && questionsData.length > 0) {
           // Convert database format to component format
           const formattedQuestions: Question[] = questionsData.map((q: any) => ({
-            id: q.id.toString(),
-            question: q.question || 'Question text missing',
-            options: Array.isArray(q.options) ? q.options : ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
-            correctAnswer: typeof q.correct_answer === 'number' ? q.correct_answer : 0,
-            explanation: q.explanation || 'No explanation available',
-            category: q.category || 'General',
-            difficulty: q.difficulty || 'medium'
+            id: q.id,
+            question: q.question_text,
+            options: q.options,
+            correctAnswer: q.correct_answer,
+            explanation: q.explanation,
+            category: q.category,
+            difficulty: q.difficulty
           }))
-          console.log('Formatted questions:', formattedQuestions)
           setQuestions(formattedQuestions)
         } else {
           // Use mock questions if no questions in database
-          console.log('No questions in database, using mock questions')
-          console.log('Season being searched:', season)
           setQuestions(mockQuestions)
         }
       } catch (error) {

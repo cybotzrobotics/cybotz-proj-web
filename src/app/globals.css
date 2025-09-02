@@ -20,7 +20,8 @@
 
 @layer components {
   .glass-morphism {
-    @apply bg-white/5 backdrop-blur-md border border-white/10;
+    @apply backdrop-blur-sm border border-white/10;
+    background-color: rgba(255, 255, 255, 0.03);
   }
   
   .neon-border {
@@ -45,7 +46,11 @@
   
   .ftc-card {
     @apply glass-morphism rounded-2xl p-6 transition-all duration-300 
-           hover:bg-white/10 hover:scale-[1.02] hover:shadow-xl hover:shadow-red-500/10;
+           hover:scale-[1.02] hover:shadow-xl hover:shadow-red-500/10;
+  }
+  
+  .ftc-card:hover {
+    background-color: rgba(255, 255, 255, 0.05);
   }
 }
 

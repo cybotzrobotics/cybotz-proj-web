@@ -3,136 +3,97 @@ import { useState, useEffect } from "react";
 import { supabase } from "../utils/supabaseClient";
 
 interface FTCTeam {
-  number: number;
-  name: string;
-  schoolName?: string;
+  team_key: string;
+  team_number: number;
+  team_name_short: string;
+  team_name_long: string;
+  robot_name?: string;
   city?: string;
-  stateProv?: string;
+  state_prov?: string;
   country?: string;
-  region?: string;
+  region_key?: string;
+  league_key?: string;
+  rookie_year?: number;
 }
 
 export default function RegisterTeam() {
-  const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     email: "",
     password: "",
-    full_name: "",
-    role: "student" as "student" | "mentor" | "coach",
-    team_number: "",
-    team_name: "",
-    school_name: "",
-    region: "",
-    isCreatingTeam: false, // Default to joining existing team
-    joinCode: "",
+    confirmPassword: "",
+    fullName: "",
+    username: "",
+    teamNumber: ""
   });
+
   const [loading, setLoading] = useState(false);
-  const [teamsLoading, setTeamsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [ftcTeams, setFtcTeams] = useState<FTCTeam[]>([]);
-  const [filteredTeams, setFilteredTeams] = useState<FTCTeam[]>([]);
   const [teamSearch, setTeamSearch] = useState("");
+  const [filteredTeams, setFilteredTeams] = useState<FTCTeam[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<FTCTeam | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  // Fetch specific team from FTCScout API by team number
-  const searchTeamByNumber = async (teamNumber: string) => {
-    if (!teamNumber.trim()) {
-      setFilteredTeams([]);
-      return;
-    }
-
-    setTeamsLoading(true);
-    try {
-      // Try direct team lookup first
-      const directResponse = await fetch(`https://api.ftcscout.org/rest/v1/teams/${teamNumber}`);
-      if (directResponse.ok) {
-        const team = await directResponse.json();
-        setFilteredTeams([{
-          number: team.number,
-          name: team.name,
-          schoolName: team.schoolName,
-          city: team.city,
-          stateProv: team.stateProv,
-          country: team.country,
-          region: team.region
-        }]);
-        setTeamsLoading(false);
+  // FTC Team search
+  useEffect(() => {
+    const searchTeams = async () => {
+      if (teamSearch.length < 2) {
+        setFilteredTeams([]);
         return;
       }
 
-      // If direct lookup fails, try search
-      const searchResponse = await fetch(`https://api.ftcscout.org/rest/v1/teams/search?searchText=${encodeURIComponent(teamNumber)}&limit=20`);
-      if (searchResponse.ok) {
-        const teams = await searchResponse.json();
-        setFilteredTeams(teams.map((team: any) => ({
-          number: team.number,
-          name: team.name,
-          schoolName: team.schoolName,
-          city: team.city,
-          stateProv: team.stateProv,
-          country: team.country,
-          region: team.region
-        })));
-      } else {
-        setFilteredTeams([]);
-        setError('No teams found. Please check the team number and try again.');
+      setSearchLoading(true);
+      try {
+        const response = await fetch(`https://www.thebluealliance.com/api/v3/teams/2024/simple`, {
+          headers: {
+            'X-TBA-Auth-Key': 'your-auth-key-here' // You'll need to replace this with actual key
+          }
+        });
+        
+        if (response.ok) {
+          const allTeams = await response.json();
+          const filtered = allTeams.filter((team: FTCTeam) => 
+            team.team_number.toString().includes(teamSearch) ||
+            team.team_name_short?.toLowerCase().includes(teamSearch.toLowerCase()) ||
+            team.team_name_long?.toLowerCase().includes(teamSearch.toLowerCase())
+          ).slice(0, 10);
+          setFilteredTeams(filtered);
+        }
+      } catch (error) {
+        console.error('Error searching teams:', error);
+        // Fallback to FTCScout API
+        try {
+          const ftcResponse = await fetch(`https://ftcscout.org/api/teams?number=${teamSearch}`);
+          if (ftcResponse.ok) {
+            const ftcData = await ftcResponse.json();
+            const mappedTeams = ftcData.data?.map((team: any) => ({
+              team_key: `frc${team.number}`,
+              team_number: team.number,
+              team_name_short: team.name,
+              team_name_long: team.name,
+              city: team.city,
+              state_prov: team.state,
+              country: team.country
+            })) || [];
+            setFilteredTeams(mappedTeams.slice(0, 10));
+          }
+        } catch (ftcError) {
+          console.error('FTCScout API also failed:', ftcError);
+        }
       }
-    } catch (err) {
-      console.error('Failed to fetch team:', err);
-      setError('Failed to search for team. Please try again.');
-      setFilteredTeams([]);
-    } finally {
-      setTeamsLoading(false);
-    }
-  };
+      setSearchLoading(false);
+    };
 
-  // Remove the old useEffect that fetched all teams
-  // useEffect(() => {
-  //   const fetchTeams = async () => {
-  //     setTeamsLoading(true);
-  //     try {
-  //       const response = await fetch('https://api.ftcscout.org/rest/v1/teams/search?limit=1000');
-  //       if (response.ok) {
-  //         const teams = await response.json();
-  //         setFtcTeams(teams);
-  //         setFilteredTeams(teams);
-  //       }
-  //     } catch (err) {
-  //       console.error('Failed to fetch FTC teams:', err);
-  //       setError('Failed to load team data. Please try again.');
-  //     } finally {
-  //       setTeamsLoading(false);
-  //     }
-  //   };
-  //   fetchTeams();
-  // }, []);
-
-  // Search teams when user types
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      searchTeamByNumber(teamSearch);
-    }, 500); // Debounce for 500ms
-
+    const timeoutId = setTimeout(searchTeams, 300);
     return () => clearTimeout(timeoutId);
   }, [teamSearch]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
   const handleTeamSelect = (team: FTCTeam) => {
-    setForm({
-      ...form,
-      team_number: team.number.toString(),
-      team_name: team.name,
-      school_name: team.schoolName || "",
-      region: team.region || ""
-    });
-    setTeamSearch(`${team.number} - ${team.name}`);
+    setSelectedTeam(team);
+    setForm(prev => ({ ...prev, teamNumber: team.team_number.toString() }));
+    setTeamSearch(`${team.team_number} - ${team.team_name_short || team.team_name_long}`);
+    setFilteredTeams([]);
   };
-
-  const handleNext = () => setStep(step + 1);
-  const handleBack = () => setStep(step - 1);
 
   // Registration logic
   const handleRegister = async (e: React.FormEvent) => {
@@ -140,326 +101,240 @@ export default function RegisterTeam() {
     setLoading(true);
     setError("");
     setSuccess("");
+
+    // Validation
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords don't match");
+      setLoading(false);
+      return;
+    }
+
+    if (!selectedTeam) {
+      setError("Please select a valid FTC team");
+      setLoading(false);
+      return;
+    }
+
+    if (!form.username.trim()) {
+      setError("Username is required for leaderboard ranking");
+      setLoading(false);
+      return;
+    }
+
     try {
-      // 1. Register user with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
-        options: { 
-          data: { 
-            full_name: form.full_name,
-            role: form.role,
-            team_number: form.team_number,
-            team_name: form.team_name
-          } 
-        },
+        options: {
+          data: {
+            full_name: form.fullName,
+            username: form.username,
+            team_number: selectedTeam.team_number,
+            team_name: selectedTeam.team_name_short || selectedTeam.team_name_long,
+            team_key: selectedTeam.team_key
+          }
+        }
       });
-      if (authError) throw authError;
-      
-      setSuccess("Registration successful! Check your email to verify your account.");
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
-    } finally {
-      setLoading(false);
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess("Registration successful! Please check your email to verify your account.");
+        setForm({
+          email: "",
+          password: "",
+          confirmPassword: "",
+          fullName: "",
+          username: "",
+          teamNumber: ""
+        });
+        setSelectedTeam(null);
+        setTeamSearch("");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
     }
+
+    setLoading(false);
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Progress Indicator */}
-      <div className="mb-8">
-        <div className="flex items-center justify-center space-x-4">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-red-600' : 'bg-gray-700'}`}>
-            <span className="text-white text-sm font-bold">1</span>
-          </div>
-          <div className={`w-16 h-1 ${step >= 2 ? 'bg-red-600' : 'bg-gray-700'}`}></div>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-red-600' : 'bg-gray-700'}`}>
-            <span className="text-white text-sm font-bold">2</span>
-          </div>
-          <div className={`w-16 h-1 ${step >= 3 ? 'bg-red-600' : 'bg-gray-700'}`}></div>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 3 ? 'bg-red-600' : 'bg-gray-700'}`}>
-            <span className="text-white text-sm font-bold">3</span>
-          </div>
-        </div>
-        <div className="flex justify-between mt-2 text-sm text-gray-400">
-          <span>Personal Info</span>
-          <span>Team Selection</span>
-          <span>Confirmation</span>
-        </div>
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Matrix Background - Let it show through */}
+      <div className="absolute inset-0 opacity-50">
+        <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/60 to-black/80" />
       </div>
 
-      <div className="bg-black/90 rounded-xl p-8 shadow-2xl border border-red-800/50 backdrop-blur-sm">
-        <h2 className="text-3xl font-bold text-red-500 mb-6 text-center">Join the Competition</h2>
-        
-        <form onSubmit={handleRegister}>
-          {step === 1 && (
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Personal Information</h3>
-              
-              <div>
-                <label className="block text-gray-300 mb-2">Full Name</label>
-                <input 
-                  name="full_name" 
-                  value={form.full_name} 
-                  onChange={handleChange} 
-                  required 
-                  placeholder="Enter your full name" 
-                  className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
-                />
-              </div>
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-cyber font-bold bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent mb-2">
+              Register Your Team
+            </h1>
+            <p className="text-gray-400">Join the FTC Quiz competition</p>
+          </div>
 
-              <div>
-                <label className="block text-gray-300 mb-2">Email Address</label>
-                <input 
-                  name="email" 
-                  value={form.email} 
-                  onChange={handleChange} 
-                  required 
-                  type="email" 
-                  placeholder="your.email@example.com" 
-                  className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2">Password</label>
-                <input 
-                  name="password" 
-                  value={form.password} 
-                  onChange={handleChange} 
-                  required 
-                  type="password" 
-                  placeholder="Choose a strong password" 
-                  className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2">Role</label>
-                <input 
-                  name="role" 
-                  value="Student" 
-                  readOnly
-                  className="w-full p-3 rounded-lg bg-gray-800/70 border border-gray-600 text-gray-400 cursor-not-allowed"
-                />
-                <p className="text-xs text-gray-500 mt-1">Currently only accepting student registrations</p>
-              </div>
-
-              <button 
-                type="button" 
-                onClick={handleNext} 
-                className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-bold transition-all transform hover:scale-105"
-              >
-                Continue to Team Selection
-              </button>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Team Selection</h3>
-              
-              <div className="space-y-4">
-                <label className="flex items-center space-x-3 p-3 rounded-lg border border-gray-700 hover:border-red-600 transition-colors cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="isCreatingTeam" 
-                    checked={!form.isCreatingTeam} 
-                    onChange={() => setForm(f => ({ ...f, isCreatingTeam: false }))}
-                    className="text-red-600 focus:ring-red-500"
-                  />
+          {/* Registration Form - Made transparent */}
+          <div className="bg-black/40 backdrop-blur-sm rounded-xl p-6 border border-red-800/30">
+            <form onSubmit={handleRegister} className="space-y-4">
+              {/* Form in 3-column grid to fit on screen */}
+              <div className="grid grid-cols-1 gap-4">
+                {/* Row 1: Email and Full Name */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div className="text-white font-semibold">Join Existing FTC Team</div>
-                    <div className="text-gray-400 text-sm">Find your team from the official FTC roster</div>
-                  </div>
-                </label>
-                
-                <label className="flex items-center space-x-3 p-3 rounded-lg border border-gray-700 hover:border-red-600 transition-colors cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="isCreatingTeam" 
-                    checked={form.isCreatingTeam} 
-                    onChange={() => setForm(f => ({ ...f, isCreatingTeam: true }))}
-                    className="text-red-600 focus:ring-red-500"
-                  />
-                  <div>
-                    <div className="text-white font-semibold">Create New Team Entry</div>
-                    <div className="text-gray-400 text-sm">For teams not yet in our system</div>
-                  </div>
-                </label>
-              </div>
-
-              {!form.isCreatingTeam ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-gray-300 mb-2">Search for Your FTC Team</label>
-                    <input 
-                      value={teamSearch}
-                      onChange={(e) => setTeamSearch(e.target.value)}
-                      placeholder="Enter team number (e.g., 12345)"
-                      className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors"
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={form.email}
+                      onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-red-500"
+                      placeholder="student@email.com"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Type your team number to search the official FTC database</p>
                   </div>
-
-                  {teamsLoading && (
-                    <div className="text-center py-4 text-gray-400">Searching teams...</div>
-                  )}
-
-                  {filteredTeams.length > 0 && !teamsLoading && (
-                    <div className="bg-black/50 rounded-lg border border-red-700/50">
-                      {filteredTeams.map((team) => (
-                        <div
-                          key={team.number}
-                          onClick={() => handleTeamSelect(team)}
-                          className="p-3 hover:bg-red-600/20 cursor-pointer border-b border-gray-800 last:border-b-0 transition-colors"
-                        >
-                          <div className="text-white font-semibold">#{team.number} - {team.name}</div>
-                          {team.schoolName && <div className="text-gray-400 text-sm">{team.schoolName}</div>}
-                          {team.city && team.stateProv && (
-                            <div className="text-gray-500 text-xs">{team.city}, {team.stateProv}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {filteredTeams.length === 0 && teamSearch && !teamsLoading && (
-                    <div className="p-4 text-center text-gray-400 bg-black/50 rounded-lg border border-red-700/50">
-                      No teams found. Please check the team number or try creating a new team entry.
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={form.fullName}
+                      onChange={(e) => setForm(prev => ({ ...prev, fullName: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-red-500"
+                      placeholder="Your Name"
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
+
+                {/* Row 2: Username */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Username <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={form.username}
+                    onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full px-3 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-red-500"
+                    placeholder="Username for leaderboard"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This will be displayed on the leaderboard</p>
+                </div>
+
+                {/* Row 3: Team Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    FTC Team
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={teamSearch}
+                      onChange={(e) => {
+                        setTeamSearch(e.target.value);
+                        setSelectedTeam(null);
+                      }}
+                      className="w-full px-3 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-red-500"
+                      placeholder="Search by team number or name..."
+                    />
+                    {searchLoading && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="text-red-400 text-xs">Searching for team...</div>
+                      </div>
+                    )}
+                    {filteredTeams.length > 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg max-h-40 overflow-y-auto">
+                        {filteredTeams.map((team) => (
+                          <button
+                            key={team.team_key}
+                            type="button"
+                            onClick={() => handleTeamSelect(team)}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-700 text-white text-sm border-b border-gray-700 last:border-b-0"
+                          >
+                            <div className="font-medium">{team.team_number} - {team.team_name_short || team.team_name_long}</div>
+                            {(team.city || team.state_prov) && (
+                              <div className="text-xs text-gray-400">
+                                {[team.city, team.state_prov, team.country].filter(Boolean).join(', ')}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Row 4: Password fields */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-300 mb-2">Team Number</label>
-                    <input 
-                      name="team_number" 
-                      value={form.team_number} 
-                      onChange={handleChange} 
-                      required 
-                      placeholder="Enter your FTC team number" 
-                      className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={form.password}
+                      onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-red-500"
+                      placeholder="••••••••"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-2">Team Name</label>
-                    <input 
-                      name="team_name" 
-                      value={form.team_name} 
-                      onChange={handleChange} 
-                      required 
-                      placeholder="Enter your team name" 
-                      className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={form.confirmPassword}
+                      onChange={(e) => setForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-red-500"
+                      placeholder="••••••••"
                     />
                   </div>
-                  <div>
-                    <label className="block text-gray-300 mb-2">School Name (Optional)</label>
-                    <input 
-                      name="school_name" 
-                      value={form.school_name} 
-                      onChange={handleChange} 
-                      placeholder="Enter school or organization name" 
-                      className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-300 mb-2">Region (Optional)</label>
-                    <input 
-                      name="region" 
-                      value={form.region} 
-                      onChange={handleChange} 
-                      placeholder="e.g., California North, Texas East" 
-                      className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
-                    />
-                  </div>
+                </div>
+              </div>
+
+              {/* Error/Success Messages */}
+              {error && (
+                <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 text-red-300 text-sm">
+                  {error}
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={handleBack} 
-                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-semibold transition-colors"
-                >
-                  Back
-                </button>
-                <button 
-                  type="button" 
-                  onClick={handleNext} 
-                  disabled={!form.team_number || !form.team_name}
-                  className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-bold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                  Review & Register
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Confirm Registration</h3>
-              
-              <div className="bg-black/50 rounded-lg p-6 border border-red-700/50">
-                <h4 className="text-lg font-semibold text-red-400 mb-4">Registration Summary</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Name:</span>
-                    <span className="text-white">{form.full_name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Email:</span>
-                    <span className="text-white">{form.email}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Role:</span>
-                    <span className="text-white capitalize">{form.role}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Team:</span>
-                    <span className="text-white">#{form.team_number} - {form.team_name}</span>
-                  </div>
-                  {form.school_name && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">School:</span>
-                      <span className="text-white">{form.school_name}</span>
-                    </div>
-                  )}
+              {success && (
+                <div className="bg-green-500/20 border border-green-500 rounded-lg p-3 text-green-300 text-sm">
+                  {success}
                 </div>
-              </div>
+              )}
 
-              <div className="flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={handleBack} 
-                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-semibold transition-colors"
-                >
-                  Back to Edit
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={loading} 
-                  className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-bold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                  {loading ? "Creating Account..." : "Complete Registration"}
-                </button>
-              </div>
-            </div>
-          )}
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading || !selectedTeam}
+                className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-bold transition-all transform hover:scale-105 disabled:hover:scale-100"
+              >
+                {loading ? "Registering..." : "Register Team"}
+              </button>
+            </form>
 
-          {error && (
-            <div className="mt-4 p-4 bg-red-900/50 border border-red-700 rounded-lg">
-              <div className="text-red-400">{error}</div>
+            {/* Back to Login */}
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => window.location.href = '/login'}
+                className="text-red-400 hover:text-red-300 text-sm transition-colors"
+              >
+                ← Back to Login
+              </button>
             </div>
-          )}
-          
-          {success && (
-            <div className="mt-4 p-4 bg-green-900/50 border border-green-700 rounded-lg">
-              <div className="text-green-400">{success}</div>
-            </div>
-          )}
-        </form>
+          </div>
+        </div>
       </div>
     </div>
   );
