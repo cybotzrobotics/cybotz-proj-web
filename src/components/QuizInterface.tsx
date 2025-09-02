@@ -150,7 +150,10 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
   }, [timeLeft, isTimerActive, showExplanation, loading])
 
   const saveQuizAttempt = async () => {
-    if (!user || isGuest || questions.length === 0) return
+    if (!user || isGuest || questions.length === 0) {
+      console.log('Skipping quiz save:', { user: !!user, isGuest, questionsLength: questions.length })
+      return
+    }
     
     try {
       const questionsAnswered = questions.map((question, index) => ({
@@ -160,7 +163,7 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
         is_correct: answers[index] === question.correctAnswer
       }))
 
-      const { data, error } = await supabase.from('quiz_attempts').insert({
+      const attemptData = {
         user_id: user.id,
         season: season,
         score: score,
@@ -168,17 +171,28 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
         questions_answered: questionsAnswered,
         time_taken: Math.round((Date.now() - startTime) / 1000),
         is_guest: false
-      }).select()
+      }
+
+      console.log('Saving quiz attempt:', attemptData)
+
+      const { data, error } = await supabase.from('quiz_attempts').insert(attemptData).select()
 
       if (error) {
         console.error('Error saving quiz attempt:', error)
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
       } else {
         console.log('Quiz attempt saved successfully:', data)
         // Trigger leaderboard refresh by dispatching a custom event
+        console.log('Dispatching quizCompleted event')
         window.dispatchEvent(new CustomEvent('quizCompleted'))
       }
     } catch (error) {
-      console.error('Error saving quiz attempt:', error)
+      console.error('Exception saving quiz attempt:', error)
     }
   }
 
@@ -433,7 +447,7 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -100 }}
             transition={{ duration: 0.3 }}
-            className="glass-panel p-8 mb-8"
+            className="glass-panel p-8 mb-8 relative overflow-hidden min-h-[500px]"
           >
             <h2 className="text-xl font-semibold text-white mb-6 leading-relaxed">
               {currentQuestion?.question}
@@ -483,39 +497,55 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
               })}
             </div>
 
-            {/* Explanation */}
+            {/* Overlay for Explanation and Next Button */}
             <AnimatePresence>
               {showExplanation && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-8"
                 >
-                  <h3 className="font-semibold text-blue-300 mb-2">Explanation:</h3>
-                  <p className="text-gray-300 text-sm leading-relaxed">
-                    {currentQuestion?.explanation}
-                  </p>
+                  <div className="max-w-2xl w-full">
+                    {/* Explanation Box */}
+                    <motion.div
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.1 }}
+                      className="p-6 bg-blue-900/90 border border-blue-500/50 rounded-lg mb-6 backdrop-blur-sm"
+                    >
+                      <h3 className="font-semibold text-blue-300 mb-3 text-lg">
+                        {selectedAnswer === currentQuestion.correctAnswer ? '✅ Correct!' : '❌ Incorrect'}
+                      </h3>
+                      <p className="text-gray-200 leading-relaxed">
+                        {currentQuestion?.explanation}
+                      </p>
+                      <div className="mt-4 text-sm text-gray-400">
+                        <span className="text-green-400 font-semibold">
+                          Correct Answer: {String.fromCharCode(65 + currentQuestion.correctAnswer)} - {currentQuestion?.options[currentQuestion.correctAnswer]}
+                        </span>
+                      </div>
+                    </motion.div>
+
+                    {/* Next Button */}
+                    <motion.div
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="text-center"
+                    >
+                      <button
+                        onClick={nextQuestion}
+                        className="px-10 py-4 bg-ftc-orange hover:bg-ftc-orange/80 rounded-lg text-white font-semibold transition-colors flex items-center space-x-3 mx-auto text-lg shadow-lg"
+                      >
+                        <span>{currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}</span>
+                        <Zap className="w-5 h-5" />
+                      </button>
+                    </motion.div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
-
-            {/* Next Button */}
-            {showExplanation && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6 text-center"
-              >
-                <button
-                  onClick={nextQuestion}
-                  className="px-8 py-3 bg-ftc-orange hover:bg-ftc-orange/80 rounded-lg text-white font-semibold transition-colors flex items-center space-x-2 mx-auto"
-                >
-                  <span>{currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}</span>
-                  <Zap className="w-4 h-4" />
-                </button>
-              </motion.div>
-            )}
           </motion.div>
         </AnimatePresence>
       </div>
