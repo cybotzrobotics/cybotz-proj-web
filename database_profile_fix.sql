@@ -25,6 +25,15 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add created_at column if it doesn't exist (for existing tables)
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'quiz_attempts' AND column_name = 'created_at') THEN
+    ALTER TABLE quiz_attempts ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+  END IF;
+END $$;
+
 -- Create quiz_questions table if it doesn't exist
 CREATE TABLE IF NOT EXISTS quiz_questions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -218,7 +227,7 @@ WITH user_stats AS (
     MAX(qa.score) as best_score,
     COUNT(*) as total_attempts,
     ROUND(AVG(qa.score::numeric), 1) as average_score,
-    MAX(qa.created_at) as last_attempt
+    COALESCE(MAX(qa.created_at), NOW()) as last_attempt
   FROM quiz_attempts qa
   LEFT JOIN auth.users u ON qa.user_id = u.id
   LEFT JOIN user_profiles up ON qa.user_id = up.user_id
@@ -256,7 +265,7 @@ WITH team_stats AS (
     ROUND(AVG(qa.score::numeric), 1) as average_team_score,
     SUM(qa.score) as total_team_points,
     COUNT(*) as total_team_attempts,
-    MAX(qa.created_at) as last_team_activity
+    COALESCE(MAX(qa.created_at), NOW()) as last_team_activity
   FROM quiz_attempts qa
   LEFT JOIN user_profiles up ON qa.user_id = up.user_id
   WHERE qa.is_guest = false 

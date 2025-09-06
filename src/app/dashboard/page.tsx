@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [currentView, setCurrentView] = useState<'dashboard' | 'leaderboard'>('dashboard')
   const [userStats, setUserStats] = useState({
     bestScore: 0,
+    bestTotalQuestions: 0,
     quizzesCompleted: 0,
     teamRank: 0,
     streakDays: 0
@@ -45,16 +46,43 @@ export default function DashboardPage() {
       
       setUser(data.user)
       
-      // Load user stats from localStorage (could be from database in future)
-      const bestScore = localStorage.getItem(`bestScore_${data.user.id}_into-the-deep`) || '0'
-      const quizzesCompleted = localStorage.getItem(`quizzesCompleted_${data.user.id}`) || '0'
-      
-      setUserStats({
-        bestScore: parseInt(bestScore),
-        quizzesCompleted: parseInt(quizzesCompleted),
-        teamRank: Math.floor(Math.random() * 50) + 1, // TODO: Calculate from database
-        streakDays: Math.floor(Math.random() * 10) + 1 // TODO: Calculate from database
-      })
+      // Load user stats from database
+      try {
+        const { data: bestAttempt, error } = await supabase
+          .from('quiz_attempts')
+          .select('score, total_questions')
+          .eq('user_id', data.user.id)
+          .eq('is_guest', false)
+          .order('score', { ascending: false })
+          .limit(1)
+
+        const { data: totalAttempts, error: totalError } = await supabase
+          .from('quiz_attempts')
+          .select('id')
+          .eq('user_id', data.user.id)
+          .eq('is_guest', false)
+
+        setUserStats({
+          bestScore: bestAttempt?.[0]?.score || 0,
+          bestTotalQuestions: bestAttempt?.[0]?.total_questions || 0,
+          quizzesCompleted: totalAttempts?.length || 0,
+          teamRank: 0, // Removed team ranking
+          streakDays: Math.floor(Math.random() * 10) + 1 // TODO: Calculate from database
+        })
+      } catch (error) {
+        console.error('Error loading user stats:', error)
+        // Fallback to localStorage
+        const bestScore = localStorage.getItem(`bestScore_${data.user.id}_into-the-deep`) || '0'
+        const quizzesCompleted = localStorage.getItem(`quizzesCompleted_${data.user.id}`) || '0'
+        
+        setUserStats({
+          bestScore: parseInt(bestScore),
+          bestTotalQuestions: 3, // Fallback default
+          quizzesCompleted: parseInt(quizzesCompleted),
+          teamRank: 0, // Removed team ranking
+          streakDays: Math.floor(Math.random() * 10) + 1
+        })
+      }
       
       setLoading(false)
     }
@@ -113,7 +141,7 @@ export default function DashboardPage() {
     { 
       icon: Trophy, 
       label: 'Leaderboard', 
-      description: 'See team rankings',
+      description: 'See individual rankings',
       action: () => setCurrentView('leaderboard'), 
       color: 'from-yellow-500 to-orange-500',
       hoverColor: 'hover:from-yellow-600 hover:to-orange-600'
@@ -125,22 +153,14 @@ export default function DashboardPage() {
       action: () => {}, 
       color: 'from-blue-500 to-purple-500',
       hoverColor: 'hover:from-blue-600 hover:to-purple-600'
-    },
-    { 
-      icon: Users, 
-      label: 'Team Stats', 
-      description: 'View team progress',
-      action: () => {}, 
-      color: 'from-green-500 to-teal-500',
-      hoverColor: 'hover:from-green-600 hover:to-teal-600'
     }
   ]
 
   const statCards = [
     { 
       label: 'Best Score', 
-      value: `${userStats.bestScore}/3`, 
-      percentage: Math.round((userStats.bestScore / 3) * 100),
+      value: userStats.bestTotalQuestions > 0 ? `${userStats.bestScore}/${userStats.bestTotalQuestions}` : 'No attempts', 
+      percentage: userStats.bestTotalQuestions > 0 ? Math.round((userStats.bestScore / userStats.bestTotalQuestions) * 100) : 0,
       icon: Trophy, 
       color: 'text-yellow-400',
       bgColor: 'bg-yellow-500/10'
@@ -151,13 +171,6 @@ export default function DashboardPage() {
       icon: Brain, 
       color: 'text-blue-400',
       bgColor: 'bg-blue-500/10'
-    },
-    { 
-      label: 'Team Rank', 
-      value: `#${userStats.teamRank}`, 
-      icon: TrendingUp, 
-      color: 'text-green-400',
-      bgColor: 'bg-green-500/10'
     },
     { 
       label: 'Current Streak', 
@@ -225,7 +238,7 @@ export default function DashboardPage() {
                 <Award className="w-6 h-6 mr-2 text-red-400" />
                 Your Progress
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {statCards.map((stat, index) => (
                   <motion.div
                     key={index}
@@ -259,7 +272,7 @@ export default function DashboardPage() {
                 <Zap className="w-6 h-6 mr-2 text-red-400" />
                 Quick Actions
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {quickActions.map((action, index) => (
                   <motion.button
                     key={index}

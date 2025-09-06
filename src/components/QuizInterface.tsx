@@ -12,11 +12,12 @@ interface Question {
   correctAnswer: number
   explanation: string
   category: string
-  difficulty: 'easy' | 'medium' | 'hard'
+  difficulty: number | string // Can be numeric (1-10) or string ('easy', 'medium', 'hard')
 }
 
 interface QuizInterfaceProps {
   season: string
+  mode: 'ranked' | 'practice'
   onBack: () => void
   isGuest?: boolean
   onComplete?: () => void
@@ -53,13 +54,13 @@ const mockQuestions: Question[] = [
   }
 ]
 
-export default function QuizInterface({ season, onBack, isGuest = false, onComplete }: QuizInterfaceProps) {
+export default function QuizInterface({ season, mode, onBack, isGuest = false, onComplete }: QuizInterfaceProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(30)
-  const [isTimerActive, setIsTimerActive] = useState(true)
+  const [timeLeft, setTimeLeft] = useState(mode === 'ranked' ? 30 : 60) // Different time limits
+  const [isTimerActive, setIsTimerActive] = useState(mode === 'ranked') // Only timer for ranked
   const [quizComplete, setQuizComplete] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
   const [answers, setAnswers] = useState<(number | null)[]>([])
@@ -80,27 +81,53 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
           
           if (user) {
             // Load best score from localStorage for now
-            const savedBestScore = localStorage.getItem(`bestScore_${user.id}_${season}`)
+            const savedBestScore = localStorage.getItem(`bestScore_${user.id}_${season}_${mode}`)
             if (savedBestScore) {
               setBestScore(parseInt(savedBestScore))
             }
           }
         }
 
-        // Load questions from database - we now know it uses 'question' column
-        const { data: questionsData, error } = await supabase
-          .from('quiz_questions')
-          .select('id, question, options, correct_answer, explanation, category, difficulty, season')
-          .eq('season', season)
-          .limit(10)
+        // Load questions based on mode
+        let questionsData, error
+        
+        if (mode === 'ranked') {
+          // Use the stored function to get daily ranked questions
+          const { data, error: dbError } = await supabase
+            .rpc('get_daily_ranked_questions')
+          
+          questionsData = data
+          error = dbError
+        } else {
+          // Get practice questions (not in today's ranked set)
+          const { data, error: dbError } = await supabase
+            .rpc('get_practice_questions')
+          
+          questionsData = data
+          error = dbError
+        }
 
-        console.log('Questions data from database:', questionsData)
+        console.log(`${mode} questions data from database:`, questionsData)
         console.log('Database error:', error)
 
         if (error) {
           console.error('Error loading questions:', error)
-          setQuestions(mockQuestions)
-        } else if (questionsData && questionsData.length > 0) {
+          // Fallback to direct query if stored functions don't exist yet
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('quiz_questions')
+            .select('id, question, options, correct_answer, explanation, category, difficulty, season')
+            .eq('season', season)
+            .limit(mode === 'ranked' ? 15 : 50)
+
+          if (fallbackError) {
+            console.error('Fallback query also failed:', fallbackError)
+            setQuestions(mockQuestions)
+          } else {
+            questionsData = fallbackData
+          }
+        }
+
+        if (questionsData && questionsData.length > 0) {
           // Convert database format to component format
           const formattedQuestions: Question[] = questionsData.map((q: any) => ({
             id: q.id.toString(),
@@ -163,33 +190,78 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
         is_correct: answers[index] === question.correctAnswer
       }))
 
+      const timeInSeconds = Math.round((Date.now() - startTime) / 1000)
+      const accuracyPercent = Math.round((score / questions.length) * 100)
+      
       const attemptData = {
         user_id: user.id,
         season: season,
         score: score,
         total_questions: questions.length,
         questions_answered: questionsAnswered,
-        time_taken: Math.round((Date.now() - startTime) / 1000),
+        time_taken: timeInSeconds,
+        accuracy: accuracyPercent,
+        date_attempted: new Date().toISOString().split('T')[0], // Add today's date
         is_guest: false
       }
 
-      console.log('Saving quiz attempt:', attemptData)
+      console.log('Saving quiz attempt with calculated data:', {
+        score: score,
+        total_questions: questions.length,
+        time_taken: timeInSeconds,
+        accuracy: accuracyPercent,
+        date_attempted: attemptData.date_attempted
+      })
 
-      const { data, error } = await supabase.from('quiz_attempts').insert(attemptData).select()
+      // For now, let's save to both tables to ensure compatibility
+      if (mode === 'ranked') {
+        // Try to save to ranked table first
+        const { data: rankedData, error: rankedError } = await supabase
+          .from('ranked_quiz_attempts')
+          .insert(attemptData)
+          .select()
 
-      if (error) {
-        console.error('Error saving quiz attempt:', error)
-        console.error('Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
+        if (rankedError) {
+          console.error('Ranked table failed, trying old table:', rankedError)
+          // Fallback to old table
+          const { data: oldData, error: oldError } = await supabase
+            .from('quiz_attempts')
+            .insert(attemptData)
+            .select()
+
+          if (oldError) {
+            console.error('Error saving to fallback table:', oldError)
+          } else {
+            console.log('Saved to fallback quiz_attempts table:', oldData)
+            window.dispatchEvent(new CustomEvent('quizCompleted'))
+          }
+        } else {
+          console.log('Ranked quiz attempt saved successfully:', rankedData)
+          window.dispatchEvent(new CustomEvent('quizCompleted'))
+        }
       } else {
-        console.log('Quiz attempt saved successfully:', data)
-        // Trigger leaderboard refresh by dispatching a custom event
-        console.log('Dispatching quizCompleted event')
-        window.dispatchEvent(new CustomEvent('quizCompleted'))
+        // Practice mode
+        const { data: practiceData, error: practiceError } = await supabase
+          .from('practice_quiz_attempts')
+          .insert(attemptData)
+          .select()
+
+        if (practiceError) {
+          console.error('Practice table failed, trying old table:', practiceError)
+          // Fallback to old table for practice too
+          const { data: oldData, error: oldError } = await supabase
+            .from('quiz_attempts')
+            .insert(attemptData)
+            .select()
+
+          if (oldError) {
+            console.error('Error saving practice to fallback table:', oldError)
+          } else {
+            console.log('Saved practice to fallback table:', oldData)
+          }
+        } else {
+          console.log('Practice quiz attempt saved successfully:', practiceData)
+        }
       }
     } catch (error) {
       console.error('Exception saving quiz attempt:', error)
@@ -228,7 +300,7 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
         if (score > (bestScore || 0)) {
           setBestScore(score)
           setIsNewBestScore(true)
-          localStorage.setItem(`bestScore_${user.id}_${season}`, score.toString())
+          localStorage.setItem(`bestScore_${user.id}_${season}_${mode}`, score.toString())
         }
       }
       
@@ -251,8 +323,18 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
     setIsNewBestScore(false)
   }
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
+  const getDifficultyText = (difficulty: number | string): string => {
+    if (typeof difficulty === 'string') return difficulty
+    
+    // Convert numeric difficulty (1-10) to text
+    if (difficulty <= 3) return 'easy'
+    if (difficulty <= 6) return 'medium'
+    return 'hard'
+  }
+
+  const getDifficultyColor = (difficulty: number | string) => {
+    const difficultyText = getDifficultyText(difficulty)
+    switch (difficultyText) {
       case 'easy': return 'text-neon-green'
       case 'medium': return 'text-ftc-orange'
       case 'hard': return 'text-ftc-red'
@@ -400,8 +482,8 @@ export default function QuizInterface({ season, onBack, isGuest = false, onCompl
             <div className="flex items-center space-x-4 text-sm text-gray-400">
               <span>Question {currentQuestionIndex + 1} of {questions.length}</span>
               <span>•</span>
-              <span className={getDifficultyColor(currentQuestion?.difficulty || 'medium')}>
-                {currentQuestion?.difficulty?.toUpperCase()}
+              <span className={getDifficultyColor(currentQuestion?.difficulty || 3)}>
+                {getDifficultyText(currentQuestion?.difficulty || 3).toUpperCase()}
               </span>
               <span>•</span>
               <span>{currentQuestion?.category}</span>
