@@ -331,7 +331,7 @@ npm run dev
 ## 📊 Current Metrics (Beta Phase)
 
 ### Platform Statistics
-- **Questions**: 10+ sample questions (Into The Deep season)
+- **Questions**: 10+ sample questions (DECODE season)
 - **Users**: Ready for unlimited student registration
 - **Teams**: FTCScout API integration for 20,000+ teams
 - **Performance**: <2s quiz question loading, real-time leaderboard updates

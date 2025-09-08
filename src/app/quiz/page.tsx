@@ -57,66 +57,106 @@ export default function QuizPage() {
     return () => subscription.unsubscribe()
   }, [router, searchParams])
 
-  const checkTodaysAttempt = async (userId: string) => {
-    setLoadingAttempt(true)
+  const checkTodaysAttemptOldMethod = async (userId: string) => {
     try {
-      // Check if user has already taken today's ranked quiz
       const today = new Date().toISOString().split('T')[0]
-      console.log('Checking for attempts on:', today)
       
-      // First try the new ranked_quiz_attempts table
-      const { data: rankedAttempt, error: rankedError } = await supabase
+      // Check ranked_quiz_attempts table first
+      const { data: rankedAttempt } = await supabase
         .from('ranked_quiz_attempts')
         .select('*')
         .eq('user_id', userId)
         .eq('date_attempted', today)
         .single()
 
-      let attempt = rankedAttempt
-
-      // If ranked table doesn't exist or no attempt found, check old table
-      if (rankedError && rankedError.code === '42P01') {
-        console.log('ranked_quiz_attempts table does not exist, checking quiz_attempts')
-      }
-      
-      if (!attempt) {
-        // Fallback: check quiz_attempts table for today's attempts
-        const { data: oldAttempts, error: oldError } = await supabase
-          .from('quiz_attempts')
-          .select('*')
-          .eq('user_id', userId)
-          .gte('created_at', today + 'T00:00:00')
-          .lt('created_at', today + 'T23:59:59')
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (!oldError && oldAttempts && oldAttempts.length > 0) {
-          attempt = oldAttempts[0]
-          // Add date_attempted field if missing
-          attempt.date_attempted = today
-        }
+      if (rankedAttempt) {
+        console.log('User already took today\'s ranked quiz:', rankedAttempt)
+        setTodaysAttempt(rankedAttempt)
+        return
       }
 
-      if (attempt) {
-        console.log('Found today\'s attempt:', attempt)
-        setTodaysAttempt(attempt)
-        
-        // Get user's current rank from leaderboard
-        const { data: leaderboard, error: rankError } = await supabase
-          .from('individual_leaderboard')
-          .select('rank, username')
-          .eq('username', user?.user_metadata?.username || user?.email)
-          .single()
+      // Fallback: check old quiz_attempts table
+      const { data: oldAttempts } = await supabase
+        .from('quiz_attempts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date_attempted', today)
+        .limit(1)
 
-        if (!rankError && leaderboard) {
-          setUserRank(leaderboard.rank)
-        }
+      if (oldAttempts && oldAttempts.length > 0) {
+        console.log('User already took today\'s quiz (old table):', oldAttempts[0])
+        setTodaysAttempt(oldAttempts[0])
       } else {
         console.log('No attempt found for today')
         setTodaysAttempt(null)
       }
     } catch (error) {
+      console.error('Error checking today\'s attempt (old method):', error)
+      setTodaysAttempt(null)
+    }
+  }
+
+  const checkTodaysAttempt = async (userId: string) => {
+    setLoadingAttempt(true)
+    try {
+      // Get the username (email)
+      const username = user?.email || 'unknown'
+      
+      // Check if this username completed today's quiz
+      const { data: hasCompleted, error: checkError } = await supabase
+        .rpc('has_completed_daily_quiz', { user_name: username })
+
+      console.log('Has completed daily quiz:', { hasCompleted, checkError, username })
+
+      if (checkError) {
+        console.error('Error checking daily completion:', checkError)
+        setTodaysAttempt(null)
+        return
+      }
+
+      if (hasCompleted) {
+        // Get their completion record to show score
+        const { data: completion } = await supabase
+          .from('daily_quiz_completions')
+          .select('*')
+          .eq('username', username)
+          .eq('quiz_date', new Date().toISOString().split('T')[0])
+          .single()
+
+        console.log('User completion:', completion)
+
+        // Get their rank from leaderboard
+        const { data: leaderboard } = await supabase
+          .from('individual_leaderboard')
+          .select('rank')
+          .eq('username', username)
+          .single()
+
+        console.log('User rank:', leaderboard)
+
+        if (completion) {
+          setTodaysAttempt({
+            id: completion.id.toString(),
+            user_id: userId,
+            score: completion.score,
+            total_questions: 15, // Daily quiz always has 15 questions
+            time_taken: 0, // We don't track time anymore
+            created_at: completion.completed_at,
+            date_attempted: completion.quiz_date,
+            accuracy: Math.round((completion.score / 15) * 100) // Calculate accuracy
+          })
+          
+          if (leaderboard) {
+            setUserRank(leaderboard.rank)
+          }
+        }
+      } else {
+        // User hasn't completed today's quiz
+        setTodaysAttempt(null)
+      }
+    } catch (error) {
       console.error('Error checking today\'s attempt:', error)
+      setTodaysAttempt(null)
     } finally {
       setLoadingAttempt(false)
     }
@@ -208,6 +248,11 @@ export default function QuizPage() {
                     <Trophy className="w-8 h-8 text-red-500" />
                   </div>
                   <h2 className="text-2xl font-cyber font-bold text-white mb-4">Daily Ranked Quiz</h2>
+                <p className="text-gray-300 mb-6">
+                  Test your knowledge with today's daily challenge
+                </p>
+                
+                {!todaysAttempt && (
                   <div className="space-y-3 text-gray-300">
                     <div className="flex items-center justify-center space-x-2">
                       <Calendar className="w-4 h-4" />
@@ -222,8 +267,7 @@ export default function QuizPage() {
                       <span>Ranked by score, accuracy & time</span>
                     </div>
                   </div>
-                  
-                  {loadingAttempt ? (
+                )}                  {loadingAttempt ? (
                     <div className="mt-6 px-6 py-3 bg-gray-600 rounded-lg text-white">
                       Checking today's attempt...
                     </div>
@@ -235,7 +279,7 @@ export default function QuizPage() {
                           Score: {todaysAttempt.score}/{todaysAttempt.total_questions}
                         </div>
                         <div className="text-gray-300 text-sm">
-                          Accuracy: {todaysAttempt.accuracy || Math.round((todaysAttempt.score / todaysAttempt.total_questions) * 100)}% • Time: {Math.floor(todaysAttempt.time_taken / 60)}:{String(todaysAttempt.time_taken % 60).padStart(2, '0')}
+                          Accuracy: {todaysAttempt.accuracy}%
                         </div>
                         {userRank && (
                           <div className="text-yellow-400 text-sm mt-2">
@@ -243,7 +287,7 @@ export default function QuizPage() {
                           </div>
                         )}
                       </div>
-                      <div className="text-gray-400 text-sm">
+                      <div className="text-gray-400 text-sm text-center">
                         Come back tomorrow for a new challenge!
                       </div>
                     </div>
@@ -338,7 +382,7 @@ export default function QuizPage() {
       {/* Quiz Interface */}
       <div className="relative z-10">
         <QuizInterface
-          season="2024-2025"
+          season="2025-2026"
           mode={selectedMode}
           onBack={handleBack}
           isGuest={isGuest}

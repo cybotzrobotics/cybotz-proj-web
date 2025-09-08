@@ -41,15 +41,25 @@ export default function DatabaseTest() {
         }
       }
 
-      // Test quiz_attempts table
+      // Test ranked_quiz_attempts table (formerly quiz_attempts)
       const { data: attempts, error: aError } = await supabase
-        .from('quiz_attempts')
+        .from('ranked_quiz_attempts')
         .select('*')
         .limit(5)
       
-      output += `Quiz Attempts Table:\n`
+      output += `Ranked Quiz Attempts Table:\n`
       output += `Error: ${aError ? JSON.stringify(aError) : 'None'}\n`
       output += `Data: ${attempts ? JSON.stringify(attempts, null, 2) : 'None'}\n\n`
+
+      // Also test practice_quiz_attempts table
+      const { data: practiceAttempts, error: pError } = await supabase
+        .from('practice_quiz_attempts')
+        .select('*')
+        .limit(5)
+      
+      output += `Practice Quiz Attempts Table:\n`
+      output += `Error: ${pError ? JSON.stringify(pError) : 'None'}\n`
+      output += `Data: ${practiceAttempts ? JSON.stringify(practiceAttempts, null, 2) : 'None'}\n\n`
 
       // Test individual_leaderboard view
       const { data: individual, error: iError } = await supabase
@@ -82,16 +92,16 @@ export default function DatabaseTest() {
     // Use the correct schema (question instead of question_text)
     const sampleQuestions = [
       {
-        season: 'Into The Deep',
+        season: 'DECODE',
         question: 'How many points does a robot score for placing a Sample in the High Basket during Autonomous?',
         options: ['6 points', '8 points', '10 points', '12 points'],
         correct_answer: 2,
-        explanation: 'According to the Into The Deep game manual, robots score 10 points for each Sample placed in the High Basket during the Autonomous period.',
+        explanation: 'According to the DECODE game manual, robots score 10 points for each Sample placed in the High Basket during the Autonomous period.',
         category: 'Scoring',
         difficulty: 'medium'
       },
       {
-        season: 'Into The Deep',
+        season: 'DECODE',
         question: 'What is the maximum height a robot can extend during the match?',
         options: ['42 inches', '48 inches', '54 inches', '60 inches'],
         correct_answer: 0,
@@ -100,7 +110,7 @@ export default function DatabaseTest() {
         difficulty: 'easy'
       },
       {
-        season: 'Into The Deep',
+        season: 'DECODE',
         question: 'During which period can robots score Specimen points in the High Chamber?',
         options: ['Autonomous only', 'TeleOp only', 'Both Autonomous and TeleOp', 'Neither period'],
         correct_answer: 2,

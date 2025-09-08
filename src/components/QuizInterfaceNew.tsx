@@ -29,7 +29,7 @@ const mockQuestions: Question[] = [
     question: 'How many points does a robot score for placing a Sample in the High Basket during Autonomous?',
     options: ['6 points', '8 points', '10 points', '12 points'],
     correctAnswer: 2,
-    explanation: 'According to the Into The Deep game manual, robots score 10 points for each Sample placed in the High Basket during the Autonomous period.',
+    explanation: 'According to the DECODE game manual, robots score 10 points for each Sample placed in the High Basket during the Autonomous period.',
     category: 'Scoring',
     difficulty: 'medium'
   },

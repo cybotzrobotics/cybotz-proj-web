@@ -5,7 +5,7 @@ An interactive, AI-powered quiz platform for mastering FTC (FIRST Tech Challenge
 ## ✨ Features
 
 - **🎯 AI-Generated Questions**: Custom DeepSeek model integration for accurate, context-aware questions
-- **🌊 Multi-Season Support**: Easily switch between FTC seasons (Into The Deep, Decode, etc.)
+- **🌊 Multi-Season Support**: Easily switch between FTC seasons (DECODE, Centerstage, etc.)
 - **🎮 Interactive 3D Background**: Three.js-powered animated environment with particles and floating geometry
 - **⚡ Real-time Scoring**: Track progress with dynamic scoring and performance analytics
 - **🏆 Gamification**: Achievements, leaderboards, and team competition features

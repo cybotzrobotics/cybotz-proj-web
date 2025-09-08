@@ -30,7 +30,7 @@ const mockQuestions: Question[] = [
     question: 'How many points does a robot score for placing a Sample in the High Basket during Autonomous?',
     options: ['6 points', '8 points', '10 points', '12 points'],
     correctAnswer: 2,
-    explanation: 'According to the Into The Deep game manual, robots score 10 points for each Sample placed in the High Basket during the Autonomous period.',
+    explanation: 'According to the DECODE game manual, robots score 10 points for each Sample placed in the High Basket during the Autonomous period.',
     category: 'Scoring',
     difficulty: 'medium'
   },
@@ -79,6 +79,45 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           const { data: { user } } = await supabase.auth.getUser()
           setUser(user)
           
+          // For ranked mode, check if user already took today's quiz
+          if (user && mode === 'ranked') {
+            const today = new Date().toISOString().split('T')[0]
+            
+            // Check ranked attempts first
+            const { data: rankedAttempt } = await supabase
+              .from('ranked_quiz_attempts')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('date_attempted', today)
+              .single()
+
+            if (rankedAttempt) {
+              console.log('User already took today\'s ranked quiz:', rankedAttempt)
+              // User already took today's quiz, redirect back
+              setTimeout(() => {
+                onBack()
+              }, 1000)
+              return
+            }
+
+            // Check fallback table
+            const { data: oldAttempts } = await supabase
+              .from('quiz_attempts')
+              .select('*')
+              .eq('user_id', user.id)
+              .gte('created_at', today + 'T00:00:00')
+              .lt('created_at', today + 'T23:59:59')
+
+            if (oldAttempts && oldAttempts.length > 0) {
+              console.log('User already took today\'s ranked quiz (old table):', oldAttempts[0])
+              // User already took today's quiz, redirect back
+              setTimeout(() => {
+                onBack()
+              }, 1000)
+              return
+            }
+          }
+          
           if (user) {
             // Load best score from localStorage for now
             const savedBestScore = localStorage.getItem(`bestScore_${user.id}_${season}_${mode}`)
@@ -112,24 +151,38 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
 
         if (error) {
           console.error('Error loading questions:', error)
-          // Fallback to direct query if stored functions don't exist yet
+          console.error('Error details:', JSON.stringify(error, null, 2))
+          
+          // For ranked mode, don't fallback - show error instead
+          if (mode === 'ranked') {
+            console.error('Ranked quiz database functions not available')
+            console.error('Error code:', error.code)
+            console.error('Error message:', error.message)
+            console.error('Error details:', error.details)
+            setQuestions([])
+            setLoading(false)
+            return
+          }
+          
+          // Only fallback for practice mode
           const { data: fallbackData, error: fallbackError } = await supabase
             .from('quiz_questions')
             .select('id, question, options, correct_answer, explanation, category, difficulty, season')
             .eq('season', season)
-            .limit(mode === 'ranked' ? 15 : 50)
+            // No limit for practice mode - get ALL questions
 
           if (fallbackError) {
             console.error('Fallback query also failed:', fallbackError)
-            setQuestions(mockQuestions)
+            setQuestions([])
           } else {
             questionsData = fallbackData
           }
         }
 
+        // Process the questions data (whether from RPC or fallback)
         if (questionsData && questionsData.length > 0) {
           // Convert database format to component format
-          const formattedQuestions: Question[] = questionsData.map((q: any) => ({
+          let formattedQuestions: Question[] = questionsData.map((q: any) => ({
             id: q.id.toString(),
             question: q.question || 'Question text missing',
             options: Array.isArray(q.options) ? q.options : ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
@@ -138,24 +191,33 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
             category: q.category || 'General',
             difficulty: q.difficulty || 'medium'
           }))
-          console.log('Formatted questions:', formattedQuestions)
+          
+          // Shuffle questions for practice mode
+          if (mode === 'practice') {
+            // Fisher-Yates shuffle algorithm
+            for (let i = formattedQuestions.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [formattedQuestions[i], formattedQuestions[j]] = [formattedQuestions[j], formattedQuestions[i]];
+            }
+          }
+          
+          console.log(`${mode === 'practice' ? 'Shuffled' : 'Ordered'} questions (${formattedQuestions.length} total):`, formattedQuestions)
           setQuestions(formattedQuestions)
         } else {
-          // Use mock questions if no questions in database
-          console.log('No questions in database, using mock questions')
-          console.log('Season being searched:', season)
-          setQuestions(mockQuestions)
+          // No questions available
+          console.log('No questions available')
+          setQuestions([])
         }
       } catch (error) {
         console.error('Error loading data:', error)
-        setQuestions(mockQuestions)
+        setQuestions([])
       } finally {
         setLoading(false)
       }
-    }
+    } // Close loadData function
 
     loadData()
-  }, [isGuest, season])
+  }, [mode, isGuest, season])
 
   // Update answers array when questions change
   useEffect(() => {
@@ -237,6 +299,25 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           }
         } else {
           console.log('Ranked quiz attempt saved successfully:', rankedData)
+          
+          // Record daily completion - SIMPLE METHOD
+          try {
+            const username = user?.email || 'unknown'
+            const { error: trackingError } = await supabase
+              .rpc('record_daily_completion', { 
+                user_name: username,
+                user_score: score
+              })
+            
+            if (trackingError) {
+              console.error('Error recording daily completion:', trackingError)
+            } else {
+              console.log('Daily completion recorded for:', username, 'Score:', score)
+            }
+          } catch (error) {
+            console.error('Exception recording daily completion:', error)
+          }
+          
           window.dispatchEvent(new CustomEvent('quizCompleted'))
         }
       } else {
@@ -366,9 +447,14 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="glass-panel p-8 text-center max-w-md">
           <XCircle className="w-16 h-16 text-ftc-red mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-4">No Questions Available</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">
+            {mode === 'ranked' ? 'Daily Quiz Setup Required' : 'No Questions Available'}
+          </h2>
           <p className="text-gray-400 mb-6">
-            No quiz questions found for the {season} season. Please check back later.
+            {mode === 'ranked' 
+              ? 'The daily ranked quiz system needs to be set up first. Please run the database setup script in your Supabase dashboard.'
+              : `No quiz questions found for the ${season} season. Please check back later.`
+            }
           </p>
           <button
             onClick={onBack}
@@ -480,8 +566,18 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white mb-2">{season} Quiz</h1>
             <div className="flex items-center space-x-4 text-sm text-gray-400">
-              <span>Question {currentQuestionIndex + 1} of {questions.length}</span>
-              <span>•</span>
+              {mode === 'ranked' && (
+                <>
+                  <span>Question {currentQuestionIndex + 1} of {questions.length}</span>
+                  <span>•</span>
+                </>
+              )}
+              {mode === 'practice' && (
+                <>
+                  <span>Practice Mode</span>
+                  <span>•</span>
+                </>
+              )}
               <span className={getDifficultyColor(currentQuestion?.difficulty || 3)}>
                 {getDifficultyText(currentQuestion?.difficulty || 3).toUpperCase()}
               </span>
@@ -505,21 +601,23 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between text-sm text-gray-400 mb-2">
-            <span>Progress</span>
-            <span>{Math.round(((currentQuestionIndex + 1) / questions.length) * 100)}%</span>
+        {/* Progress Bar - Only show for ranked mode */}
+        {mode === 'ranked' && (
+          <div className="mb-8">
+            <div className="flex justify-between text-sm text-gray-400 mb-2">
+              <span>Progress</span>
+              <span>{Math.round(((currentQuestionIndex + 1) / questions.length) * 100)}%</span>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-2">
+              <motion.div
+                className="bg-gradient-to-r from-ftc-orange to-ftc-red h-2 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
           </div>
-          <div className="w-full bg-gray-800 rounded-full h-2">
-            <motion.div
-              className="bg-gradient-to-r from-ftc-orange to-ftc-red h-2 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
-              transition={{ duration: 0.5 }}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Question Card */}
         <AnimatePresence mode="wait">
