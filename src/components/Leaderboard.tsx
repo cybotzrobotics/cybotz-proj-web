@@ -223,7 +223,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
                   >
-                    Champions of the Quiz Arena
+                    Today's Top Performers
                   </motion.p>
                 </div>
 
@@ -246,10 +246,10 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
           
           {individualData.length > 0 ? (
             <>
-                {/* Epic Championship Podium */}
+                {/* Daily Podium */}
                 {individualData.slice(0, 3).length > 0 && (
                   <div className="mb-20 relative">
-                    {/* Championship Arena Base */}
+                    {/* Podium Arena Base */}
                     <div className="relative">
                       {/* Arena floor glow */}
                       <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-96 h-8 bg-gradient-to-r from-transparent via-yellow-400/30 to-transparent blur-xl"></div>
@@ -307,7 +307,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                           </motion.div>
                         )}
 
-                        {/* 1st Place - Center Champion */}
+                        {/* 1st Place - Center Leader */}
                         {individualData[0] && (
                           <motion.div
                             initial={{ y: 200, opacity: 0, scale: 0.5 }}
@@ -316,7 +316,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                             whileHover={{ y: -15, scale: 1.03 }}
                             className="relative group z-20"
                           >
-                            {/* Champion Spotlight */}
+                            {/* Leader Spotlight */}
                             <div className="absolute -top-32 left-1/2 transform -translate-x-1/2 w-48 h-48 bg-gradient-radial from-yellow-300/30 to-transparent rounded-full blur-2xl animate-pulse"></div>
                             
                             {/* Floating Crown */}
@@ -338,15 +338,15 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                             {/* Player Avatar - LARGEST */}
                             <div className="relative mb-8">
                               <div className="w-40 h-40 bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-700 rounded-full mx-auto relative shadow-2xl border-6 border-yellow-300 group-hover:scale-110 transition-transform duration-500">
-                                {/* Inner champion circle */}
+                                {/* Inner leader circle */}
                                 <div className="absolute inset-3 bg-gradient-to-tr from-yellow-300 to-yellow-500 rounded-full flex items-center justify-center">
                                   <span className="text-5xl font-bold text-yellow-900">1</span>
                                 </div>
-                                {/* Champion aura */}
+                                {/* Leader aura */}
                                 <div className="absolute -inset-4 bg-gradient-to-r from-yellow-400/30 via-orange-400/30 to-yellow-400/30 rounded-full blur-lg animate-pulse"></div>
-                                {/* Winner badge */}
+                                {/* Top Score badge */}
                                 <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-yellow-900 px-4 py-1 rounded-full text-sm font-bold shadow-lg">
-                                  WINNER
+                                  #1 TODAY
                                 </div>
                               </div>
                             </div>
@@ -361,7 +361,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                                   animate={{ x: [-100, 200] }}
                                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                                 />
-                                <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-white font-bold text-2xl">CHAMPION</div>
+                                <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-white font-bold text-2xl">TOP SCORE</div>
                               </div>
                               {/* Podium reflection */}
                               <div className="absolute top-full left-0 right-0 h-24 bg-gradient-to-b from-yellow-400/25 to-transparent rounded-b-3xl transform scale-y-[-1]"></div>
@@ -376,7 +376,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                                   animate={{ scale: 1, rotate: 0 }}
                                   className="inline-block bg-gradient-to-r from-red-500 via-red-600 to-red-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-2xl border-2 border-red-300"
                                 >
-                                  🏆 CHAMPION! 🏆
+                                  🏆 YOU'RE #1 TODAY! 🏆
                                 </motion.div>
                               )}
                             </div>
@@ -505,8 +505,8 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
           ) : (
             <div className="text-center py-20">
               <User className="w-24 h-24 text-gray-500 mx-auto mb-6" />
-              <p className="text-gray-300 text-2xl mb-4">No champions yet</p>
-              <p className="text-gray-500 text-lg">Be the first to complete a quiz and claim your throne!</p>
+              <p className="text-gray-300 text-2xl mb-4">No scores yet today</p>
+              <p className="text-gray-500 text-lg">Be the first to complete a quiz and earn your ranking!</p>
             </div>
           )}
               </motion.div>

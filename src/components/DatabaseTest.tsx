@@ -136,6 +136,49 @@ export default function DatabaseTest() {
     }
   }
 
+  const clearMyRecords = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        setResults('❌ Not logged in! Please log in first.')
+        return
+      }
+
+      let output = `Clearing records for user: ${user.email}\n\n`
+
+      // Clear from ranked_quiz_attempts
+      const { error: rankedError } = await supabase
+        .from('ranked_quiz_attempts')
+        .delete()
+        .eq('user_id', user.id)
+
+      output += `Ranked attempts cleared: ${rankedError ? JSON.stringify(rankedError) : '✅ Success'}\n`
+
+      // Clear from quiz_attempts (old table)
+      const { error: oldError } = await supabase
+        .from('quiz_attempts')
+        .delete()
+        .eq('user_id', user.id)
+
+      output += `Old quiz attempts cleared: ${oldError ? JSON.stringify(oldError) : '✅ Success'}\n`
+
+      // Clear from practice_quiz_attempts if it exists
+      const { error: practiceError } = await supabase
+        .from('practice_quiz_attempts')
+        .delete()
+        .eq('user_id', user.id)
+
+      output += `Practice attempts cleared: ${practiceError ? JSON.stringify(practiceError) : '✅ Success'}\n`
+
+      output += `\n🎉 All your quiz records have been cleared! You can now take the ranked quiz again.`
+      
+      setResults(output)
+    } catch (error) {
+      setResults(`❌ Error clearing records: ${JSON.stringify(error)}`)
+    }
+  }
+
   return (
     <div className="p-6 bg-black text-white min-h-screen">
       <h1 className="text-2xl font-bold mb-6">Database Test & Debug Tool</h1>
@@ -153,6 +196,13 @@ export default function DatabaseTest() {
           className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded ml-4"
         >
           Seed Sample Questions
+        </button>
+
+        <button
+          onClick={clearMyRecords}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded ml-4"
+        >
+          🗑️ Clear My Quiz Records
         </button>
       </div>
 
