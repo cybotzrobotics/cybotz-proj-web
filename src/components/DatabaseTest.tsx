@@ -10,6 +10,30 @@ export default function DatabaseTest() {
     let output = 'Database Test Results:\n\n'
     
     try {
+      // Test question_reviews table first
+      output += `Testing question_reviews table:\n`
+      try {
+        const { data: reviewsData, error: reviewsError } = await supabase
+          .from('question_reviews')
+          .select('*')
+          .limit(1)
+        
+        output += `  Error: ${reviewsError ? JSON.stringify(reviewsError) : 'None'}\n`
+        output += `  Data: ${reviewsData ? JSON.stringify(reviewsData, null, 2) : 'None'}\n`
+        
+        if (reviewsError) {
+          if (reviewsError.code === 'PGRST116' || reviewsError.message.includes('does not exist')) {
+            output += `  ❌ Table does not exist - please run database migration\n\n`
+          } else {
+            output += `  ❌ Other error accessing table\n\n`
+          }
+        } else {
+          output += `  ✅ Table exists and accessible\n\n`
+        }
+      } catch (err) {
+        output += `  Exception: ${err}\n\n`
+      }
+
       // Test quiz_questions table structure by trying different column names
       const possibleColumns = [
         '*',

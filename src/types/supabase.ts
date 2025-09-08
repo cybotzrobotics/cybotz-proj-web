@@ -51,3 +51,23 @@ export type TeamInvitation = {
   created_at: string;
   expires_at: string;
 };
+
+export type QuestionReview = {
+  id: string;
+  original_question_id?: string;
+  question_text: string;
+  options: string[];
+  correct_answer: number;
+  explanation?: string;
+  category?: string;
+  difficulty?: string;
+  season?: string;
+  submitted_by: string;
+  submitted_at: string;
+  review_status: 'pending' | 'approved' | 'rejected' | 'updated';
+  review_notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
+  updated_at: string;
+};

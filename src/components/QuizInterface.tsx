@@ -69,6 +69,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [user, setUser] = useState<any>(null)
   const [startTime] = useState(Date.now())
   const [loading, setLoading] = useState(true)
+  const [submittingReview, setSubmittingReview] = useState(false)
 
   // Load user and questions on component mount
   useEffect(() => {
@@ -404,6 +405,39 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
     setIsNewBestScore(false)
   }
 
+  const submitQuestionForReview = async () => {
+    if (!user || !currentQuestion) return
+    
+    setSubmittingReview(true)
+    try {
+      const { error } = await supabase
+        .from('question_reviews')
+        .insert({
+          original_question_id: currentQuestion.id, // Already a string/UUID
+          question_text: currentQuestion.question,
+          options: currentQuestion.options,
+          correct_answer: currentQuestion.correctAnswer,
+          explanation: currentQuestion.explanation,
+          category: currentQuestion.category,
+          difficulty: currentQuestion.difficulty,
+          season: season,
+          submitted_by: user.id
+        })
+
+      if (error) {
+        console.error('Error submitting question for review:', error)
+        alert('Failed to submit question for review. Please try again.')
+      } else {
+        alert('Question submitted for review successfully!')
+      }
+    } catch (error) {
+      console.error('Error submitting question for review:', error)
+      alert('Failed to submit question for review. Please try again.')
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
+
   const getDifficultyText = (difficulty: number | string): string => {
     if (typeof difficulty === 'string') return difficulty
     
@@ -705,6 +739,22 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
                           Correct Answer: {String.fromCharCode(65 + currentQuestion.correctAnswer)} - {currentQuestion?.options[currentQuestion.correctAnswer]}
                         </span>
                       </div>
+                      
+                      {/* Send for Review Button */}
+                      {!isGuest && user && (
+                        <div className="mt-4 pt-4 border-t border-blue-500/30">
+                          <button
+                            onClick={submitQuestionForReview}
+                            disabled={submittingReview}
+                            className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 rounded-lg text-white text-sm font-medium transition-colors flex items-center space-x-2"
+                          >
+                            <span>{submittingReview ? 'Submitting...' : 'Send Question for Review'}</span>
+                          </button>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Report issues with this question for admin review
+                          </p>
+                        </div>
+                      )}
                     </motion.div>
 
                     {/* Next Button */}
