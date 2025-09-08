@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Clock, CheckCircle, XCircle, RotateCcw, Zap, Trophy } from 'lucide-react'
+import { ArrowLeft, Clock, CheckCircle, XCircle, RotateCcw, Zap, Trophy, User } from 'lucide-react'
 import { supabase } from '@/utils/supabaseClient'
 
 interface Question {
@@ -520,7 +520,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
               Quiz Complete!
             </h2>
             
-            {isNewBestScore && !isGuest && (
+            {isNewBestScore && (
               <motion.div
                 initial={{ scale: 0, rotate: -180 }}
                 animate={{ scale: 1, rotate: 0 }}
@@ -535,21 +535,13 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
               </motion.div>
             )}
             
-            {isGuest && (
-              <div className="mb-4 p-4 bg-yellow-900/30 border border-yellow-600 rounded-lg">
-                <p className="text-yellow-400 text-sm">
-                  🎯 Guest Mode: Your score won't be saved to leaderboards
-                </p>
-              </div>
-            )}
-            
             <div className="text-6xl font-bold mb-4">
               <span className="bg-gradient-to-r from-neon-green to-ftc-orange bg-clip-text text-transparent">
                 {score}/{questions.length}
               </span>
             </div>
             
-            {!isGuest && bestScore !== null && (
+            {bestScore !== null && (
               <div className="mb-4 text-gray-400">
                 <p className="text-sm">
                   Your Best: {bestScore}/{questions.length} ({Math.round((bestScore / questions.length) * 100)}%)
@@ -741,7 +733,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
                       </div>
                       
                       {/* Send for Review Button */}
-                      {!isGuest && user && (
+                      {user && (
                         <div className="mt-4 pt-4 border-t border-blue-500/30">
                           <button
                             onClick={submitQuestionForReview}

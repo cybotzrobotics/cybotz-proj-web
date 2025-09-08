@@ -8,7 +8,6 @@ import { ArrowLeft, Trophy, BookOpen, Calendar, Users, Clock } from 'lucide-reac
 
 export default function QuizPage() {
   const [user, setUser] = useState<any>(null)
-  const [isGuest, setIsGuest] = useState(false)
   const [selectedMode, setSelectedMode] = useState<'ranked' | 'practice' | null>(null)
   const [todaysAttempt, setTodaysAttempt] = useState<any>(null)
   const [userRank, setUserRank] = useState<number | null>(null)
@@ -20,33 +19,34 @@ export default function QuizPage() {
     // Check if this is guest mode from URL params
     const guestMode = searchParams.get('guest') === 'true'
     const mode = searchParams.get('mode') as 'ranked' | 'practice'
-    setIsGuest(guestMode)
+    
+    // If guest mode is attempted, redirect to guest quiz page
+    if (guestMode) {
+      router.push('/guest-quiz')
+      return
+    }
+    
     if (mode) setSelectedMode(mode)
 
     // Check authentication status
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       
-      if (!user && !guestMode) {
-        // If not logged in and not guest mode, redirect to login
+      if (!user) {
+        // If not logged in, redirect to login
         router.push('/login')
         return
       }
       
       setUser(user)
-      
-      if (user) {
-        await checkTodaysAttempt(user.id)
-      } else {
-        setLoadingAttempt(false)
-      }
+      await checkTodaysAttempt(user.id)
     }
 
     checkUser()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' && !guestMode) {
+      if (event === 'SIGNED_OUT') {
         router.push('/login')
       } else if (session?.user) {
         setUser(session.user)
@@ -166,10 +166,8 @@ export default function QuizPage() {
     if (selectedMode) {
       setSelectedMode(null)
       router.push('/quiz') // Go back to mode selection
-    } else if (isGuest || !user) {
-      router.push('/login')
     } else {
-      router.push('/login') // Since we removed dashboard, go back to login
+      router.push('/login') // Go back to login
     }
   }
 
@@ -186,7 +184,7 @@ export default function QuizPage() {
 
   const selectMode = (mode: 'ranked' | 'practice') => {
     setSelectedMode(mode)
-    router.push(`/quiz?mode=${mode}${isGuest ? '&guest=true' : ''}`)
+    router.push(`/quiz?mode=${mode}`)
   }
 
   if (!selectedMode) {
@@ -209,9 +207,6 @@ export default function QuizPage() {
               <div className="text-2xl font-cyber font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
                 FTC QUIZ
               </div>
-              {isGuest && (
-                <div className="text-xs text-gray-400 mt-1">Guest Mode</div>
-              )}
               {user && (
                 <div className="text-xs text-gray-400 mt-1">
                   Welcome, {user.user_metadata?.username || user.user_metadata?.full_name || user.email}
@@ -219,7 +214,7 @@ export default function QuizPage() {
               )}
             </div>
 
-            {!isGuest && user && (
+            {user && (
               <button
                 onClick={async () => {
                   await supabase.auth.signOut()
@@ -355,9 +350,6 @@ export default function QuizPage() {
             <div className="text-2xl font-cyber font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
               {selectedMode === 'ranked' ? 'DAILY RANKED QUIZ' : 'PRACTICE QUIZ'}
             </div>
-            {isGuest && (
-              <div className="text-xs text-gray-400 mt-1">Guest Mode</div>
-            )}
             {user && (
               <div className="text-xs text-gray-400 mt-1">
                 Welcome, {user.user_metadata?.username || user.user_metadata?.full_name || user.email}
@@ -365,7 +357,7 @@ export default function QuizPage() {
             )}
           </div>
 
-          {!isGuest && user && (
+          {user && (
             <button
               onClick={async () => {
                 await supabase.auth.signOut()
@@ -385,7 +377,7 @@ export default function QuizPage() {
           season="2025-2026"
           mode={selectedMode}
           onBack={handleBack}
-          isGuest={isGuest}
+          isGuest={false}
           onComplete={handleQuizComplete}
         />
       </div>

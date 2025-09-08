@@ -518,15 +518,15 @@ export default function LoginPage() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/quiz?guest=true')}
+                onClick={() => router.push('/guest-quiz')}
                 className="w-full py-4 bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-xl text-white font-semibold transition-all border border-gray-600/50 hover:border-gray-500 flex items-center justify-center space-x-3 shadow-lg"
               >
                 <Zap className="w-6 h-6 text-yellow-400" />
-                <span className="text-lg">Play Today's Quiz as Guest</span>
+                <span className="text-lg">Try 5 Sample Questions</span>
               </motion.button>
               
               <p className="text-xs text-gray-500 text-center mt-2">
-                No registration required • Practice mode
+                No registration required • Preview our question collection
               </p>
             </motion.div>
           </motion.div>

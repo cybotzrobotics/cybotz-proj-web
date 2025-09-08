@@ -36,11 +36,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [currentView, setCurrentView] = useState<'dashboard' | 'leaderboard'>('dashboard')
   const [userStats, setUserStats] = useState({
-    bestAccuracy: 0,
+    questionsCorrect: 0,
     totalQuestionsAnswered: 0,
-    quizzesCompleted: 0,
-    currentRank: 0,
     streakDays: 0,
+    currentRank: 0,
+    teamRank: 0,
     averageResponseTime: 0,
     improvementTrend: 0
   })
@@ -59,41 +59,39 @@ export default function DashboardPage() {
       
       // Load user stats from database
       try {
-        // Get all quiz attempts to calculate comprehensive stats
-        const { data: allAttempts, error: attemptsError } = await supabase
-          .from('quiz_attempts')
-          .select('score, total_questions, time_taken, created_at')
-          .eq('user_id', data.user.id)
-          .eq('is_guest', false)
-          .order('created_at', { ascending: false })
-
-        // Also check ranked_quiz_attempts table
+        // Get all ranked quiz attempts to calculate comprehensive stats
         const { data: rankedAttempts, error: rankedError } = await supabase
           .from('ranked_quiz_attempts')
           .select('score, total_questions, time_taken, created_at, accuracy')
           .eq('user_id', data.user.id)
           .order('created_at', { ascending: false })
 
-        // Combine both attempt types
-        const combinedAttempts = [...(allAttempts || []), ...(rankedAttempts || [])]
+        console.log('Ranked attempts fetched:', rankedAttempts)
+        console.log('Ranked attempts error:', rankedError)
+
+        // Use only ranked attempts since quiz_attempts table doesn't exist
+        const combinedAttempts = rankedAttempts || []
         
         // Calculate stats
         let totalQuestionsAnswered = 0
-        let bestAccuracy = 0
+        let totalCorrectAnswers = 0
         let totalTime = 0
         let validTimeEntries = 0
         
+        console.log('Combined attempts:', combinedAttempts)
+        
         combinedAttempts.forEach(attempt => {
+          console.log('Processing attempt:', attempt)
           totalQuestionsAnswered += attempt.total_questions || 0
-          const accuracy = (attempt as any).accuracy || (attempt.total_questions > 0 ? (attempt.score / attempt.total_questions) * 100 : 0)
-          if (accuracy > bestAccuracy) {
-            bestAccuracy = accuracy
-          }
+          totalCorrectAnswers += attempt.score || 0
+          console.log('Current totalCorrectAnswers:', totalCorrectAnswers)
           if (attempt.time_taken && attempt.time_taken > 0) {
             totalTime += attempt.time_taken
             validTimeEntries++
           }
         })
+        
+        console.log('Final totalCorrectAnswers:', totalCorrectAnswers)
 
         // Calculate streak (simplified - count recent attempts)
         const now = new Date()
@@ -110,6 +108,30 @@ export default function DashboardPage() {
           .or(`user_id.eq.${data.user.id},username.eq.${data.user.user_metadata?.username || data.user.email}`)
           .single()
 
+        // Get user's team rank from team leaderboard
+        let teamRank = 0
+        try {
+          // First get user's profile to find their team number
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('team_number')
+            .eq('id', data.user.id)
+            .single()
+
+          if (userProfile?.team_number) {
+            // Then get team rank from team leaderboard
+            const { data: teamRankData } = await supabase
+              .from('team_leaderboard')
+              .select('rank')
+              .eq('team_number', userProfile.team_number)
+              .single()
+            
+            teamRank = teamRankData?.rank || 0
+          }
+        } catch (error) {
+          console.log('Could not fetch team rank:', error)
+        }
+
         // Calculate improvement trend (compare first half vs second half of attempts)
         let improvementTrend = 0
         if (combinedAttempts.length >= 4) {
@@ -123,23 +145,27 @@ export default function DashboardPage() {
           improvementTrend = Math.round(recentAvg - olderAvg)
         }
 
+        console.log('Final totalCorrectAnswers:', totalCorrectAnswers)
+
         setUserStats({
-          bestAccuracy: Math.round(bestAccuracy),
+          questionsCorrect: totalCorrectAnswers,
           totalQuestionsAnswered,
-          quizzesCompleted: combinedAttempts.length,
           currentRank: userRankData?.rank || 0,
+          teamRank,
           streakDays: recentAttempts.length,
           averageResponseTime: validTimeEntries > 0 ? Math.round(totalTime / validTimeEntries) : 0,
           improvementTrend
         })
+        
+        console.log('Set userStats with questionsCorrect:', totalCorrectAnswers)
       } catch (error) {
         console.error('Error loading user stats:', error)
         // Fallback values
         setUserStats({
-          bestAccuracy: 0,
+          questionsCorrect: 0,
           totalQuestionsAnswered: 0,
-          quizzesCompleted: 0,
           currentRank: 0,
+          teamRank: 0,
           streakDays: 0,
           averageResponseTime: 0,
           improvementTrend: 0
@@ -227,9 +253,9 @@ export default function DashboardPage() {
       bgColor: 'bg-blue-500/10'
     },
     { 
-      label: 'Quizzes Completed', 
-      value: userStats.quizzesCompleted.toString(), 
-      icon: Brain, 
+      label: 'Team Rank', 
+      value: userStats.teamRank ? `#${userStats.teamRank}` : 'N/A', 
+      icon: Users, 
       color: 'text-green-400',
       bgColor: 'bg-green-500/10'
     },
@@ -311,11 +337,11 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-2xl font-bold text-yellow-400">
-                      {userStats.bestAccuracy}%
+                      {userStats.questionsCorrect}
                     </div>
-                    <div className="text-xs text-yellow-300/80">Best Accuracy</div>
+                    <div className="text-xs text-yellow-300/80">Questions Correct</div>
                   </div>
-                  <Trophy className="w-6 h-6 text-yellow-400" />
+                  <CheckCircle className="w-6 h-6 text-yellow-400" />
                 </div>
               </motion.div>
 
@@ -323,21 +349,6 @@ export default function DashboardPage() {
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-sm rounded-xl p-4 border border-blue-500/30"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-bold text-blue-400">{userStats.quizzesCompleted}</div>
-                    <div className="text-xs text-blue-300/80">Completed</div>
-                  </div>
-                  <CheckCircle className="w-6 h-6 text-blue-400" />
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.4 }}
                 className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-sm rounded-xl p-4 border border-green-500/30"
               >
                 <div className="flex items-center justify-between">
@@ -352,7 +363,7 @@ export default function DashboardPage() {
               <motion.div 
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 0.4 }}
                 className="bg-gradient-to-r from-red-500/20 to-pink-500/20 backdrop-blur-sm rounded-xl p-4 border border-red-500/30"
               >
                 <div className="flex items-center justify-between">
@@ -361,6 +372,21 @@ export default function DashboardPage() {
                     <div className="text-xs text-red-300/80">Current Rank</div>
                   </div>
                   <Star className="w-6 h-6 text-red-400" />
+                </div>
+              </motion.div>
+
+              <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-sm rounded-xl p-4 border border-blue-500/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-2xl font-bold text-blue-400">#{userStats.teamRank || 'N/A'}</div>
+                    <div className="text-xs text-blue-300/80">Team Rank</div>
+                  </div>
+                  <Users className="w-6 h-6 text-blue-400" />
                 </div>
               </motion.div>
             </div>
@@ -459,13 +485,13 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 rounded-xl p-4 border border-purple-500/30">
                       <div className="flex items-center justify-between mb-3">
-                        <Target className="w-6 h-6 text-purple-400" />
-                        <span className="text-xs text-purple-300 bg-purple-500/20 px-2 py-1 rounded-full">ACCURACY</span>
+                        <CheckCircle className="w-6 h-6 text-purple-400" />
+                        <span className="text-xs text-purple-300 bg-purple-500/20 px-2 py-1 rounded-full">CORRECT</span>
                       </div>
                       <div className="text-2xl font-bold text-white mb-1">
-                        {userStats.bestAccuracy}%
+                        {userStats.questionsCorrect}
                       </div>
-                      <div className="text-sm text-purple-300">Best Accuracy</div>
+                      <div className="text-sm text-purple-300">Questions Correct</div>
                     </div>
 
                     <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 rounded-xl p-4 border border-green-500/30">

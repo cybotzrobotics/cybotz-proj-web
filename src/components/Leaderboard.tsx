@@ -1,8 +1,8 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/utils/supabaseClient'
-import { Trophy, User, Medal, Target, ArrowLeft, Sparkles, Star, Crown } from 'lucide-react'
+import { Trophy, User, Medal, Target, ArrowLeft, Star, Crown, Zap, TrendingUp, ChevronRight, Award, Flame, Shield } from 'lucide-react'
 
 interface IndividualLeaderboard {
   id: string
@@ -22,55 +22,14 @@ interface LeaderboardProps {
   onBack: () => void
 }
 
-interface Ball {
-  id: number
-  x: number
-  y: number
-  velocityX: number
-  velocityY: number
-  power: number
-  trail: { x: number; y: number }[]
-}
-
-interface Particle {
-  id: number
-  x: number
-  y: number
-  velocityX: number
-  velocityY: number
-  life: number
-  color: string
-}
-
 export default function Leaderboard({ onBack }: LeaderboardProps) {
   const [individualData, setIndividualData] = useState<IndividualLeaderboard[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
-  
-  // Mini-game state
-  const [balls, setBalls] = useState<Ball[]>([])
-  const [score, setScore] = useState(0)
-  const [particles, setParticles] = useState<Particle[]>([])
-  const [gameContainer, setGameContainer] = useState<DOMRect | null>(null)
-  const gameRef = useRef<HTMLDivElement>(null)
-  const ballIdRef = useRef(0)
-  const particleIdRef = useRef(0)
-  const animationFrameRef = useRef<number>()
-  
-  // Game constants
-  const BALL_SIZE = 20 // 5 inches diameter scaled down
-  const TARGET_SIZE = 80
-  const GRAVITY = 0.3
-  const FRICTION = 0.99
 
   useEffect(() => {
     getCurrentUser()
     fetchLeaderboardData()
-    
-    // Initialize game container
-    if (gameRef.current) {
-      setGameContainer(gameRef.current.getBoundingClientRect())
-    }
 
     // Listen for quiz completion events to refresh leaderboard
     const handleQuizCompleted = () => {
@@ -80,32 +39,9 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
 
     window.addEventListener('quizCompleted', handleQuizCompleted)
     
-    // Start game animation loop
-    const gameLoop = () => {
-      updateBalls()
-      updateParticles()
-      animationFrameRef.current = requestAnimationFrame(gameLoop)
-    }
-    gameLoop()
-    
     return () => {
       window.removeEventListener('quizCompleted', handleQuizCompleted)
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
     }
-  }, [])
-
-  useEffect(() => {
-    // Update game container on resize
-    const handleResize = () => {
-      if (gameRef.current) {
-        setGameContainer(gameRef.current.getBoundingClientRect())
-      }
-    }
-    
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   const getCurrentUser = async () => {
@@ -137,152 +73,32 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
     }
   }
 
-  // Mini-game functions
-  const updateBalls = () => {
-    setBalls(prevBalls => {
-      return prevBalls.map(ball => {
-        const newBall = { ...ball }
-        
-        // Apply gravity and friction
-        newBall.velocityY += GRAVITY
-        newBall.velocityX *= FRICTION
-        newBall.velocityY *= FRICTION
-        
-        // Update position
-        newBall.x += newBall.velocityX
-        newBall.y += newBall.velocityY
-        
-        // Update trail
-        newBall.trail = [...newBall.trail, { x: newBall.x, y: newBall.y }].slice(-8)
-        
-        // Bounce off walls
-        if (gameContainer) {
-          if (newBall.x <= BALL_SIZE/2) {
-            newBall.x = BALL_SIZE/2
-            newBall.velocityX *= -0.7
-          }
-          if (newBall.x >= gameContainer.width - BALL_SIZE/2) {
-            newBall.x = gameContainer.width - BALL_SIZE/2
-            newBall.velocityX *= -0.7
-          }
-          if (newBall.y <= BALL_SIZE/2) {
-            newBall.y = BALL_SIZE/2
-            newBall.velocityY *= -0.7
-          }
-          if (newBall.y >= gameContainer.height - BALL_SIZE/2) {
-            newBall.y = gameContainer.height - BALL_SIZE/2
-            newBall.velocityY *= -0.7
-          }
-        }
-        
-        return newBall
-      }).filter(ball => {
-        // Remove balls that are too slow or out of bounds
-        const speed = Math.sqrt(ball.velocityX ** 2 + ball.velocityY ** 2)
-        return speed > 0.1 && gameContainer && 
-               ball.x >= -100 && ball.x <= gameContainer.width + 100 &&
-               ball.y >= -100 && ball.y <= gameContainer.height + 100
-      })
-    })
-  }
-
-  const updateParticles = () => {
-    setParticles(prevParticles => {
-      return prevParticles.map(particle => ({
-        ...particle,
-        x: particle.x + particle.velocityX,
-        y: particle.y + particle.velocityY,
-        velocityY: particle.velocityY + 0.1,
-        life: particle.life - 1
-      })).filter(particle => particle.life > 0)
-    })
-  }
-
-  const createParticles = (x: number, y: number, color: string) => {
-    const newParticles = Array.from({ length: 8 }, () => ({
-      id: particleIdRef.current++,
-      x,
-      y,
-      velocityX: (Math.random() - 0.5) * 10,
-      velocityY: (Math.random() - 0.5) * 10,
-      life: 30,
-      color
-    }))
-    setParticles(prev => [...prev, ...newParticles])
-  }
-
-  const shootBall = (event: React.MouseEvent) => {
-    if (!gameContainer) return
-    
-    const rect = gameRef.current?.getBoundingClientRect()
-    if (!rect) return
-    
-    const clickX = event.clientX - rect.left
-    const clickY = event.clientY - rect.top
-    
-    // Calculate power based on distance from launcher (bottom-left corner)
-    const launcherX = 50
-    const launcherY = gameContainer.height - 50
-    
-    const deltaX = clickX - launcherX
-    const deltaY = clickY - launcherY
-    const distance = Math.sqrt(deltaX ** 2 + deltaY ** 2)
-    const power = Math.min(distance / 10, 20)
-    
-    // Normalize direction and apply power
-    const direction = Math.sqrt(deltaX ** 2 + deltaY ** 2)
-    const velocityX = (deltaX / direction) * power
-    const velocityY = (deltaY / direction) * power
-    
-    const newBall: Ball = {
-      id: ballIdRef.current++,
-      x: launcherX,
-      y: launcherY,
-      velocityX,
-      velocityY,
-      power,
-      trail: []
-    }
-    
-    setBalls(prev => [...prev, newBall])
-    createParticles(launcherX, launcherY, '#ff6b6b')
-  }
-
-  const checkTargetHit = (ball: Ball) => {
-    if (!gameContainer) return false
-    
-    const targetX = gameContainer.width - 100
-    const targetY = gameContainer.height - 100
-    
-    const distance = Math.sqrt((ball.x - targetX) ** 2 + (ball.y - targetY) ** 2)
-    
-    if (distance < TARGET_SIZE / 2) {
-      setScore(prev => prev + 1)
-      createParticles(targetX, targetY, '#4ade80')
-      return true
-    }
-    return false
-  }
-
   const isCurrentUser = (userId: string) => {
     return currentUser?.id === userId
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-red-900 to-black">
+      <div className="min-h-screen bg-gradient-to-br from-black via-red-950 to-black flex items-center justify-center">
         <div className="text-center">
           <motion.div 
-            className="w-20 h-20 border-4 border-red-400 border-t-transparent rounded-full mx-auto mb-6"
+            className="relative mb-8"
             animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          />
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          >
+            <div className="w-24 h-24 border-4 border-red-600/20 rounded-full"></div>
+            <div className="absolute inset-0 w-24 h-24 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="absolute inset-4 w-16 h-16 border-2 border-maroon-400 border-b-transparent rounded-full animate-spin" style={{ animationDirection: 'reverse' }}></div>
+          </motion.div>
           <motion.div 
-            className="text-white text-xl font-medium"
+            className="space-y-3"
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            Loading Champions...
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-red-400 via-red-500 to-red-600 bg-clip-text text-transparent">
+              Initializing Battle Arena
+            </h2>
+            <p className="text-red-300/70">Gathering elite warriors...</p>
           </motion.div>
         </div>
       </div>
@@ -290,364 +106,450 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-gray-900 via-red-900 to-black">
-      {/* Interactive Game Background */}
-      <div 
-        ref={gameRef}
-        className="absolute inset-0 cursor-crosshair"
-        onClick={shootBall}
-      >
-        {/* Animated Background Elements */}
-        <div className="absolute inset-0">
-          {/* Floating geometric shapes */}
-          {[...Array(6)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute"
-              style={{
-                left: `${15 + (i % 3) * 30}%`,
-                top: `${20 + Math.floor(i / 3) * 40}%`,
-              }}
-              animate={{
-                rotate: [0, 360],
-                scale: [1, 1.2, 1],
-                opacity: [0.1, 0.3, 0.1],
-              }}
-              transition={{
-                duration: 8 + i * 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            >
-              <div className={`w-16 h-16 border-2 rounded-lg ${
-                i % 2 === 0 ? 'border-red-400/20' : 'border-orange-400/20'
-              }`} />
-            </motion.div>
-          ))}
-          
-          {/* Subtle grid pattern */}
-          <div className="absolute inset-0 opacity-5">
-            <div className="grid grid-cols-12 gap-8 h-full">
-              {[...Array(144)].map((_, i) => (
-                <div key={i} className="border border-white/10" />
-              ))}
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-black via-red-950 to-maroon-950 relative overflow-hidden">
+      {/* Cyberpunk Grid Background */}
+      <div className="absolute inset-0">
+        {/* Matrix-style grid */}
+        <div className="absolute inset-0 opacity-10">
+          <div 
+            className="w-full h-full"
+            style={{
+              backgroundImage: `
+                linear-gradient(rgba(220, 38, 38, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(220, 38, 38, 0.3) 1px, transparent 1px)
+              `,
+              backgroundSize: '60px 60px'
+            }}
+          />
         </div>
 
-        {/* Mini-game Elements */}
-        {/* Pickleball Launcher (bottom-left corner) */}
-        <motion.div
-          className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-full shadow-lg border-2 border-orange-300"
-          whileHover={{ scale: 1.1 }}
-          animate={{
-            boxShadow: [
-              "0 0 10px rgba(251, 146, 60, 0.5)",
-              "0 0 20px rgba(251, 146, 60, 0.8)",
-              "0 0 10px rgba(251, 146, 60, 0.5)",
-            ],
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="absolute inset-2 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-full flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-orange-800" />
-          </div>
-        </motion.div>
-
-        {/* Target (bottom-right corner) */}
-        <motion.div
-          className="absolute bottom-4 right-24 w-20 h-20 rounded-full border-4 border-green-400 bg-green-400/10"
-          animate={{
-            borderColor: ["#4ade80", "#22c55e", "#4ade80"],
-            scale: [1, 1.05, 1],
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="absolute inset-2 rounded-full border-2 border-green-500 bg-green-500/20">
-            <div className="absolute inset-2 rounded-full border-2 border-green-600 bg-green-600/30 flex items-center justify-center">
-              <Target className="w-6 h-6 text-green-400" />
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Score Display */}
-        <motion.div
-          className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-red-400/30"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="text-red-400 font-bold text-lg">
-            Score: {score}
-          </div>
-        </motion.div>
-
-        {/* Flying Balls */}
-        {balls.map(ball => (
-          <motion.div key={ball.id}>
-            {/* Ball trail */}
-            {ball.trail.map((point, index) => (
-              <div
-                key={index}
-                className="absolute w-2 h-2 bg-orange-400 rounded-full"
-                style={{
-                  left: point.x - 1,
-                  top: point.y - 1,
-                  opacity: index / ball.trail.length * 0.6,
-                }}
-              />
-            ))}
-            {/* Main ball */}
-            <div
-              className="absolute w-5 h-5 bg-gradient-to-br from-yellow-300 to-orange-500 rounded-full shadow-lg border border-orange-300"
-              style={{
-                left: ball.x - BALL_SIZE/2,
-                top: ball.y - BALL_SIZE/2,
-              }}
-            />
-          </motion.div>
+        {/* Animated energy orbs */}
+        {[...Array(12)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              background: `radial-gradient(circle, ${
+                i % 3 === 0 ? 'rgba(220, 38, 38, 0.4)' : 
+                i % 3 === 1 ? 'rgba(153, 27, 27, 0.4)' : 
+                'rgba(69, 10, 10, 0.4)'
+              } 0%, transparent 70%)`,
+              width: `${80 + i * 20}px`,
+              height: `${80 + i * 20}px`,
+              left: `${5 + (i % 4) * 25}%`,
+              top: `${10 + Math.floor(i / 4) * 30}%`,
+            }}
+            animate={{
+              scale: [1, 1.3, 1],
+              opacity: [0.3, 0.7, 0.3],
+              x: [-20, 20, -20],
+              y: [-15, 15, -15],
+            }}
+            transition={{
+              duration: 8 + i * 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
         ))}
 
-        {/* Particles */}
-        {particles.map(particle => (
-          <div
-            key={particle.id}
-            className="absolute w-1 h-1 rounded-full"
+        {/* Glowing particles */}
+        {[...Array(30)].map((_, i) => (
+          <motion.div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 bg-red-400 rounded-full"
             style={{
-              left: particle.x,
-              top: particle.y,
-              backgroundColor: particle.color,
-              opacity: particle.life / 30,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            animate={{
+              opacity: [0, 1, 0],
+              scale: [0, 1.5, 0],
+            }}
+            transition={{
+              duration: 2 + Math.random() * 3,
+              repeat: Infinity,
+              delay: Math.random() * 5,
             }}
           />
         ))}
       </div>
 
-      {/* Content Overlay */}
-      <div className="relative z-10 min-h-screen flex flex-col">
+      {/* Main Content */}
+      <div className="relative z-10">
+        {/* Header Section */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex-grow flex flex-col p-6"
+          initial={{ y: -100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="p-8"
         >
-          {/* Header */}
-          <motion.div
-            initial={{ y: -50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="flex items-center justify-between mb-8"
-          >
-            <motion.button
-              onClick={onBack}
-              whileHover={{ scale: 1.05, x: -5 }}
-              whileTap={{ scale: 0.95 }}
-              className="flex items-center space-x-3 text-gray-300 hover:text-white transition-all bg-gray-800/80 backdrop-blur-sm px-6 py-3 rounded-full border border-gray-600/50 hover:border-red-400/50"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back to Dashboard</span>
-            </motion.button>
+          <div className="max-w-7xl mx-auto">
+            {/* Navigation */}
+            <div className="flex items-center justify-between mb-12">
+              <motion.button
+                onClick={onBack}
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="group flex items-center space-x-3 bg-black/40 backdrop-blur-lg border border-red-600/30 hover:border-red-500/50 px-6 py-3 rounded-2xl transition-all duration-300"
+              >
+                <ArrowLeft className="w-5 h-5 text-red-400 group-hover:text-red-300" />
+                <span className="text-red-300 group-hover:text-white font-medium">Battle Command</span>
+              </motion.button>
 
+              <div className="flex items-center space-x-4">
+                <motion.div
+                  animate={{ 
+                    boxShadow: [
+                      "0 0 20px rgba(220, 38, 38, 0.3)",
+                      "0 0 40px rgba(220, 38, 38, 0.6)",
+                      "0 0 20px rgba(220, 38, 38, 0.3)",
+                    ]
+                  }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="bg-gradient-to-r from-red-600 to-red-700 p-3 rounded-full"
+                >
+                  <Trophy className="w-8 h-8 text-white" />
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Epic Title */}
             <motion.div
-              className="flex-1 text-center"
-              animate={{
-                textShadow: [
-                  "0 0 10px rgba(239, 68, 68, 0.5)",
-                  "0 0 20px rgba(239, 68, 68, 0.8)",
-                  "0 0 10px rgba(239, 68, 68, 0.5)",
-                ],
-              }}
-              transition={{ duration: 3, repeat: Infinity }}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.8 }}
+              className="text-center mb-16"
             >
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent mb-2">
-                LEADERBOARD
-              </h1>
-              <p className="text-gray-300 text-lg font-medium">
-                Hall of Champions
-              </p>
+              <motion.h1
+                className="text-7xl font-black mb-6 relative"
+                style={{
+                  background: 'linear-gradient(45deg, #dc2626, #991b1b, #7f1d1d, #dc2626)',
+                  backgroundSize: '300% 300%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+                animate={{
+                  backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+                }}
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
+                ELITE RANKINGS
+                <motion.div
+                  className="absolute -top-4 -right-4 w-8 h-8 bg-red-500 rounded-full"
+                  animate={{ 
+                    scale: [1, 1.5, 1],
+                    opacity: [1, 0.5, 1] 
+                  }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              </motion.h1>
+              
+              <motion.p
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="text-xl text-red-300/80 font-medium tracking-wide"
+              >
+                Where Legends Are Forged • Where Victory Is Earned
+              </motion.p>
             </motion.div>
-
-            <div className="w-32" /> {/* Spacer */}
-          </motion.div>
-
-          {/* Main Leaderboard Content */}
-          <div className="flex-grow flex items-center justify-center">
-            <motion.div
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="w-full max-w-4xl"
-            >
-              {individualData.length > 0 ? (
-                <div className="grid gap-6">
-                  {/* Top 3 Showcase */}
-                  {individualData.slice(0, 3).length > 0 && (
-                    <div className="mb-8">
-                      <div className="grid md:grid-cols-3 gap-6">
-                        {individualData.slice(0, 3).map((player, index) => (
+          </div>
+        </motion.div>
+        {/* Leaderboard Content */}
+        <div className="px-8 pb-8">
+          <div className="max-w-7xl mx-auto">
+            {individualData.length > 0 ? (
+              <div className="space-y-8">
+                {/* Elite Tier - Top 3 */}
+                {individualData.slice(0, 3).length > 0 && (
+                  <motion.div
+                    initial={{ y: 50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.8 }}
+                    className="mb-12"
+                  >
+                    <motion.h2 
+                      className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent"
+                      animate={{ opacity: [0.7, 1, 0.7] }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                    >
+                      ⚔️ ELITE TIER ⚔️
+                    </motion.h2>
+                    
+                    <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                      {individualData.slice(0, 3).map((player, index) => {
+                        const rank = index + 1;
+                        return (
                           <motion.div
                             key={player.id}
                             initial={{ y: 100, opacity: 0, scale: 0.8 }}
                             animate={{ y: 0, opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.6 + index * 0.2 }}
-                            whileHover={{ y: -10, scale: 1.05 }}
-                            className={`relative p-6 rounded-2xl border-2 backdrop-blur-sm overflow-hidden ${
-                              index === 0 
-                                ? 'border-yellow-400/50 bg-gradient-to-br from-yellow-400/10 to-orange-400/10' 
-                                : index === 1 
-                                ? 'border-slate-300/50 bg-gradient-to-br from-slate-300/10 to-slate-500/10'
-                                : 'border-amber-600/50 bg-gradient-to-br from-amber-600/10 to-amber-800/10'
+                            transition={{ delay: 1 + index * 0.2 }}
+                            whileHover={{ y: -10, scale: 1.03 }}
+                            className={`relative group ${
+                              rank === 1 ? 'md:order-2 transform md:scale-110' : 
+                              rank === 2 ? 'md:order-1' : 'md:order-3'
                             }`}
                           >
-                            {/* Rank indicator */}
-                            <div className={`absolute -top-3 -right-3 w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold border-4 ${
-                              index === 0 
-                                ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 border-yellow-200 text-yellow-900' 
-                                : index === 1 
-                                ? 'bg-gradient-to-br from-slate-200 to-slate-400 border-slate-100 text-slate-800'
-                                : 'bg-gradient-to-br from-amber-400 to-amber-600 border-amber-300 text-amber-900'
+                            {/* Warrior Card */}
+                            <div className={`relative p-8 rounded-3xl border-2 backdrop-blur-xl overflow-hidden ${
+                              rank === 1 
+                                ? 'border-red-500/70 bg-gradient-to-br from-red-900/60 to-red-950/60' 
+                                : rank === 2 
+                                ? 'border-red-600/50 bg-gradient-to-br from-red-900/40 to-black/40'
+                                : 'border-red-700/50 bg-gradient-to-br from-red-950/40 to-black/30'
                             }`}>
-                              {index === 0 ? <Crown className="w-6 h-6" /> : index + 1}
-                            </div>
-
-                            {/* Animated background effect */}
-                            <motion.div
-                              className={`absolute inset-0 opacity-20 ${
-                                index === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-400' 
-                                : index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500'
-                                : 'bg-gradient-to-br from-amber-400 to-amber-600'
-                              }`}
-                              animate={{
-                                scale: [1, 1.1, 1],
-                                opacity: [0.1, 0.3, 0.1],
-                              }}
-                              transition={{ duration: 4, repeat: Infinity }}
-                            />
-
-                            <div className="relative z-10 text-center">
-                              <div className="text-white font-bold text-xl mb-2">
-                                {player.username}
-                              </div>
-                              <div className="text-gray-300 text-sm mb-4">
-                                Team {player.team_number}
-                              </div>
                               
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div className="bg-black/20 rounded-lg p-2">
-                                  <div className="text-gray-400">Best Score</div>
-                                  <div className="text-white font-bold">{player.best_score}%</div>
+                              {/* Rank Crown/Badge */}
+                              <motion.div 
+                                className={`absolute -top-6 left-1/2 transform -translate-x-1/2 ${
+                                  rank === 1 ? 'w-16 h-16' : 'w-12 h-12'
+                                } ${
+                                  rank === 1 
+                                    ? 'bg-gradient-to-br from-red-400 to-red-600' 
+                                    : rank === 2 
+                                    ? 'bg-gradient-to-br from-red-500 to-red-700'
+                                    : 'bg-gradient-to-br from-red-600 to-red-800'
+                                } rounded-full flex items-center justify-center border-4 border-black shadow-2xl`}
+                                animate={rank === 1 ? {
+                                  boxShadow: [
+                                    "0 0 30px rgba(220, 38, 38, 0.6)",
+                                    "0 0 50px rgba(220, 38, 38, 0.9)",
+                                    "0 0 30px rgba(220, 38, 38, 0.6)",
+                                  ]
+                                } : {}}
+                                transition={{ duration: 2, repeat: Infinity }}
+                              >
+                                {rank === 1 ? (
+                                  <Crown className="w-8 h-8 text-white" />
+                                ) : (
+                                  <span className="text-white font-black text-xl">#{rank}</span>
+                                )}
+                              </motion.div>
+
+                              {/* Elite Status Indicator */}
+                              <div className="text-center mb-6 pt-6">
+                                <motion.div
+                                  animate={{ rotate: [0, 5, 0, -5, 0] }}
+                                  transition={{ duration: 4, repeat: Infinity }}
+                                  className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${
+                                    rank === 1 
+                                      ? 'bg-red-500/30 border border-red-400/50' 
+                                      : 'bg-red-600/20 border border-red-500/30'
+                                  }`}
+                                >
+                                  {rank === 1 && <Flame className="w-4 h-4 text-red-300" />}
+                                  <span className="text-red-200 font-bold text-sm tracking-wider">
+                                    {rank === 1 ? 'LEGEND' : rank === 2 ? 'MASTER' : 'ELITE'}
+                                  </span>
+                                  {rank === 1 && <Flame className="w-4 h-4 text-red-300" />}
+                                </motion.div>
+                              </div>
+
+                              {/* Player Info */}
+                              <div className="text-center mb-6">
+                                <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-red-300 transition-colors">
+                                  {player.username}
+                                </h3>
+                                {isCurrentUser(player.id) && (
+                                  <motion.div 
+                                    initial={{ scale: 0, y: 10 }}
+                                    animate={{ scale: 1, y: 0 }}
+                                    className="inline-flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-full text-sm font-bold"
+                                  >
+                                    <Star className="w-4 h-4" />
+                                    <span>YOUR WARRIOR</span>
+                                    <Star className="w-4 h-4" />
+                                  </motion.div>
+                                )}
+                              </div>
+
+                              {/* Battle Stats */}
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-red-300/80 font-medium">Accuracy</span>
+                                  <span className="text-white font-bold text-lg">{player.best_accuracy}%</span>
                                 </div>
-                                <div className="bg-black/20 rounded-lg p-2">
-                                  <div className="text-gray-400">Attempts</div>
-                                  <div className="text-white font-bold">{player.attempts}</div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-red-300/80 font-medium">Battles</span>
+                                  <span className="text-white font-bold">{player.attempts}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-red-300/80 font-medium">Response Time</span>
+                                  <span className="text-white font-bold">{player.best_time}s</span>
                                 </div>
                               </div>
 
-                              {isCurrentUser(player.id) && (
-                                <motion.div 
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  className="mt-4 bg-gradient-to-r from-red-500 to-orange-500 text-white px-4 py-2 rounded-full text-sm font-bold"
-                                >
-                                  ⭐ YOU ⭐
-                                </motion.div>
-                              )}
+                              {/* Power Level Bar */}
+                              <div className="mt-6">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-red-300/80 text-sm font-medium">Power Level</span>
+                                  <span className="text-red-300 text-sm font-bold">{player.best_accuracy}%</span>
+                                </div>
+                                <div className="h-3 bg-black/50 rounded-full overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${player.best_accuracy}%` }}
+                                    transition={{ delay: 1.5 + index * 0.2, duration: 1.5 }}
+                                    className={`h-full rounded-full ${
+                                      rank === 1 
+                                        ? 'bg-gradient-to-r from-red-400 to-red-600' 
+                                        : 'bg-gradient-to-r from-red-500 to-red-700'
+                                    }`}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </motion.div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </motion.div>
+                )}
 
-                  {/* Rest of Rankings */}
-                  {individualData.length > 3 && (
-                    <div className="space-y-3">
-                      <h3 className="text-xl font-bold text-gray-300 mb-4 flex items-center">
-                        <Star className="w-5 h-5 mr-2 text-red-400" />
-                        Other Champions
-                      </h3>
+                {/* Warrior Ranks - Rest of the players */}
+                {individualData.length > 3 && (
+                  <motion.div
+                    initial={{ y: 50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 1.5 }}
+                  >
+                    <motion.h2 
+                      className="text-2xl font-bold text-center mb-6 text-red-300"
+                      animate={{ opacity: [0.7, 1, 0.7] }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                    >
+                      ⚔️ WARRIOR RANKS ⚔️
+                    </motion.h2>
+                    
+                    <div className="grid gap-4 max-w-4xl mx-auto">
                       {individualData.slice(3).map((player, index) => (
                         <motion.div
                           key={player.id}
-                          initial={{ x: -100, opacity: 0 }}
+                          initial={{ x: -50, opacity: 0 }}
                           animate={{ x: 0, opacity: 1 }}
-                          transition={{ delay: 0.8 + index * 0.05 }}
-                          whileHover={{ scale: 1.02, x: 10 }}
-                          className={`p-4 rounded-xl border backdrop-blur-sm transition-all ${
+                          transition={{ delay: 1.8 + index * 0.1 }}
+                          whileHover={{ x: 10, scale: 1.02 }}
+                          className={`group flex items-center p-6 rounded-2xl border backdrop-blur-lg transition-all duration-300 ${
                             isCurrentUser(player.id) 
-                              ? 'border-red-400/50 bg-red-400/10' 
-                              : 'border-gray-600/30 bg-gray-800/20 hover:border-gray-500/50'
+                              ? 'border-red-500/70 bg-gradient-to-r from-red-900/50 to-red-950/50' 
+                              : 'border-red-800/30 bg-gradient-to-r from-red-950/20 to-black/20 hover:border-red-600/50'
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4">
-                              <div className="w-10 h-10 bg-gradient-to-br from-gray-600 to-gray-800 rounded-full flex items-center justify-center border-2 border-gray-500">
-                                <span className="text-white font-bold">#{player.rank}</span>
-                              </div>
+                          {/* Rank Badge */}
+                          <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-red-600 to-red-800 rounded-2xl flex items-center justify-center mr-6 group-hover:scale-110 transition-transform">
+                            <span className="text-white font-black text-xl">#{player.rank}</span>
+                          </div>
+
+                          {/* Player Info */}
+                          <div className="flex-grow">
+                            <div className="flex items-center justify-between">
                               <div>
-                                <div className="text-white font-bold flex items-center">
+                                <h3 className="text-xl font-bold text-white group-hover:text-red-300 transition-colors">
                                   {player.username}
                                   {isCurrentUser(player.id) && (
-                                    <span className="ml-2 text-xs bg-red-500 text-white px-2 py-1 rounded-full">YOU</span>
+                                    <span className="ml-3 inline-flex items-center bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                                      <Shield className="w-3 h-3 mr-1" />
+                                      YOU
+                                    </span>
                                   )}
+                                </h3>
+                                <div className="flex items-center space-x-4 text-red-300/70 text-sm mt-1">
+                                  <span>Accuracy: {player.best_accuracy}%</span>
+                                  <span>•</span>
+                                  <span>Battles: {player.attempts}</span>
+                                  <span>•</span>
+                                  <span>Speed: {player.best_time}s</span>
                                 </div>
-                                <div className="text-gray-400 text-sm">Team {player.team_number}</div>
                               </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-white font-bold">{player.best_score}%</div>
-                              <div className="text-gray-400 text-sm">{player.attempts} attempts</div>
+                              
+                              <ChevronRight className="w-6 h-6 text-red-500 group-hover:text-red-300 group-hover:translate-x-2 transition-all" />
                             </div>
                           </div>
                         </motion.div>
                       ))}
                     </div>
-                  )}
-
-                  {/* Current User Rank */}
-                  {currentUser && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 1 }}
-                      className="mt-8 p-6 bg-gradient-to-r from-gray-800/80 to-gray-900/80 border border-red-400/30 rounded-xl backdrop-blur-sm"
-                    >
-                      <div className="text-center">
-                        {(() => {
-                          const userRank = individualData.find(player => isCurrentUser(player.id))?.rank
-                          if (userRank) {
-                            return (
-                              <div className="text-white">
-                                <span className="text-red-400 font-bold text-lg">Your Current Rank: </span>
-                                <span className="text-2xl font-bold">#{userRank}</span>
-                                {userRank <= 3 && <span className="ml-2 text-2xl">🎉</span>}
-                              </div>
-                            )
-                          } else {
-                            return (
-                              <div className="text-gray-400 text-lg">
-                                Complete a quiz to join the leaderboard!
-                              </div>
-                            )
-                          }
-                        })()}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-20">
-                  <motion.div
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <Trophy className="w-32 h-32 text-gray-500 mx-auto mb-6" />
                   </motion.div>
-                  <h2 className="text-white text-3xl font-bold mb-4">No Champions Yet</h2>
-                  <p className="text-gray-400 text-xl">Be the first to conquer the quiz and claim your throne!</p>
-                </div>
-              )}
-            </motion.div>
+                )}
+
+                {/* Player's Current Status */}
+                {currentUser && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 2 }}
+                    className="mt-12 p-8 bg-gradient-to-r from-red-900/40 to-black/40 backdrop-blur-lg rounded-3xl border border-red-600/30 max-w-2xl mx-auto"
+                  >
+                    <div className="text-center">
+                      {(() => {
+                        const userRank = individualData.find(player => isCurrentUser(player.id))?.rank
+                        if (userRank) {
+                          return (
+                            <div>
+                              <h3 className="text-2xl font-bold text-red-300 mb-4">Your Battle Status</h3>
+                              <div className="flex items-center justify-center space-x-4">
+                                <Award className="w-8 h-8 text-red-400" />
+                                <div>
+                                  <div className="text-4xl font-black text-white">Rank #{userRank}</div>
+                                  <div className="text-red-300/80">
+                                    {userRank <= 3 ? 'Elite Tier Warrior!' : 'Battle-Hardened Fighter'}
+                                  </div>
+                                </div>
+                                <Award className="w-8 h-8 text-red-400" />
+                              </div>
+                            </div>
+                          )
+                        } else {
+                          return (
+                            <div>
+                              <Zap className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                              <h3 className="text-xl font-bold text-red-300 mb-2">Ready for Battle</h3>
+                              <p className="text-red-300/70">Complete your first quiz to join the warrior ranks!</p>
+                            </div>
+                          )
+                        }
+                      })()}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 }}
+                className="text-center py-20"
+              >
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.1, 1],
+                    opacity: [0.7, 1, 0.7] 
+                  }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                >
+                  <Trophy className="w-24 h-24 text-red-600 mx-auto mb-8" />
+                </motion.div>
+                <h2 className="text-4xl font-bold text-red-300 mb-4">The Arena Awaits</h2>
+                <p className="text-red-300/70 text-xl mb-8 max-w-md mx-auto">
+                  No warriors have entered the battle yet. Be the first to claim your throne!
+                </p>
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-4 rounded-2xl font-bold text-lg"
+                >
+                  <Zap className="w-6 h-6" />
+                  <span>Enter the Arena</span>
+                </motion.div>
+              </motion.div>
+            )}
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   )
