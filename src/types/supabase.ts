@@ -25,6 +25,8 @@ export type User = {
   individual_points: number;
   games_played: number;
   best_score: number;
+  elo_rating: number;
+  peak_elo: number;
   created_at: string;
   last_active: string;
 };

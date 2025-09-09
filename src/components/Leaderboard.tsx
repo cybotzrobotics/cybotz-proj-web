@@ -2,18 +2,19 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/utils/supabaseClient'
-import { Trophy, User, Medal, Target, ArrowLeft, Star, Crown, Zap, TrendingUp, ChevronRight, Award, Flame, Shield } from 'lucide-react'
+import { Trophy, User, Medal, Target, ArrowLeft, Star, Crown, Zap, TrendingUp, ChevronRight, Award, Flame, Shield, Users } from 'lucide-react'
+import TeamLeaderboard from './TeamLeaderboard'
 
 interface IndividualLeaderboard {
-  id: string
+  user_id: string
   username: string
   full_name: string
   team_number: number
-  team_name: string
+  elo_rating: number
+  peak_elo: number
+  total_attempts: number
+  average_score: number
   best_score: number
-  best_accuracy: number
-  best_time: number
-  attempts: number
   last_attempt: string
   rank: number
 }
@@ -22,10 +23,22 @@ interface LeaderboardProps {
   onBack: () => void
 }
 
+// ELO tier system
+const getEloTier = (elo: number) => {
+  if (elo >= 2000) return { name: 'Grandmaster', color: 'from-yellow-400 to-yellow-600', icon: Crown }
+  if (elo >= 1800) return { name: 'Master', color: 'from-purple-400 to-purple-600', icon: Award }
+  if (elo >= 1600) return { name: 'Expert', color: 'from-blue-400 to-blue-600', icon: Star }
+  if (elo >= 1400) return { name: 'Advanced', color: 'from-green-400 to-green-600', icon: Zap }
+  if (elo >= 1200) return { name: 'Intermediate', color: 'from-orange-400 to-orange-600', icon: TrendingUp }
+  if (elo >= 1000) return { name: 'Novice', color: 'from-gray-400 to-gray-600', icon: Shield }
+  return { name: 'Beginner', color: 'from-red-400 to-red-600', icon: Target }
+}
+
 export default function Leaderboard({ onBack }: LeaderboardProps) {
   const [individualData, setIndividualData] = useState<IndividualLeaderboard[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [viewMode, setViewMode] = useState<'individual' | 'team'>('individual')
 
   useEffect(() => {
     getCurrentUser()
@@ -37,10 +50,18 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
       fetchLeaderboardData()
     }
 
+    // Listen for ELO updates to refresh leaderboard
+    const handleEloUpdated = () => {
+      console.log('ELO updated, refreshing leaderboard...')
+      fetchLeaderboardData()
+    }
+
     window.addEventListener('quizCompleted', handleQuizCompleted)
+    window.addEventListener('eloUpdated', handleEloUpdated)
     
     return () => {
       window.removeEventListener('quizCompleted', handleQuizCompleted)
+      window.removeEventListener('eloUpdated', handleEloUpdated)
     }
   }, [])
 
@@ -64,10 +85,66 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
       console.log('Individual leaderboard error:', individualError)
 
       if (individualError) throw individualError
-      setIndividualData(individualData || [])
+      
+      // If no leaderboard data, try to get data from quiz attempts with basic user info
+      if (!individualData || individualData.length === 0) {
+        console.log('No leaderboard data found, trying to get quiz attempts...')
+        
+        const { data: attemptsData, error: attemptsError } = await supabase
+          .from('ranked_quiz_attempts')
+          .select('user_id, score, total_questions, created_at')
+          .order('score', { ascending: false })
+          .limit(50)
+          
+        if (attemptsData && attemptsData.length > 0) {
+          // Group by user and create a temporary leaderboard
+          const userStats = new Map()
+          
+          attemptsData.forEach(attempt => {
+            const userId = attempt.user_id
+            if (!userStats.has(userId)) {
+              userStats.set(userId, {
+                user_id: userId,
+                username: `User_${userId.substring(0, 8)}`,
+                full_name: 'Quiz Participant',
+                team_number: 1,
+                elo_rating: 1000,
+                peak_elo: 1000,
+                total_attempts: 0,
+                average_score: 0,
+                best_score: 0,
+                last_attempt: attempt.created_at,
+                rank: 0
+              })
+            }
+            
+            const stats = userStats.get(userId)
+            stats.total_attempts++
+            stats.best_score = Math.max(stats.best_score, attempt.score)
+            stats.average_score = ((stats.average_score * (stats.total_attempts - 1)) + attempt.score) / stats.total_attempts
+            
+            if (new Date(attempt.created_at) > new Date(stats.last_attempt)) {
+              stats.last_attempt = attempt.created_at
+            }
+          })
+          
+          // Convert to array and add ranks
+          const tempLeaderboard = Array.from(userStats.values())
+            .sort((a, b) => b.best_score - a.best_score)
+            .map((user, index) => ({ ...user, rank: index + 1 }))
+          
+          console.log('Created temporary leaderboard from quiz attempts:', tempLeaderboard)
+          setIndividualData(tempLeaderboard)
+        } else {
+          setIndividualData([])
+        }
+      } else {
+        setIndividualData(individualData || [])
+      }
 
     } catch (error) {
       console.error('Error fetching leaderboard data:', error)
+      setIndividualData([])
     } finally {
       setLoading(false)
     }
@@ -75,6 +152,11 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
 
   const isCurrentUser = (userId: string) => {
     return currentUser?.id === userId
+  }
+
+  // Show team leaderboard view
+  if (viewMode === 'team') {
+    return <TeamLeaderboard onBack={() => setViewMode('individual')} />
   }
 
   if (loading) {
@@ -211,6 +293,17 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                 >
                   <Trophy className="w-8 h-8 text-white" />
                 </motion.div>
+                
+                {/* View Toggle */}
+                <motion.button
+                  onClick={() => setViewMode('team')}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex items-center space-x-2 bg-black/40 backdrop-blur-lg border border-red-600/30 hover:border-red-500/50 px-4 py-2 rounded-xl transition-all duration-300"
+                >
+                  <Users className="w-5 h-5 text-red-400" />
+                  <span className="text-red-300 font-medium">Team Rankings</span>
+                </motion.button>
               </div>
             </div>
 
@@ -287,7 +380,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                         const rank = index + 1;
                         return (
                           <motion.div
-                            key={player.id}
+                            key={player.user_id}
                             initial={{ y: 100, opacity: 0, scale: 0.8 }}
                             animate={{ y: 0, opacity: 1, scale: 1 }}
                             transition={{ delay: 1 + index * 0.2 }}
@@ -357,7 +450,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                                 <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-red-300 transition-colors">
                                   {player.username}
                                 </h3>
-                                {isCurrentUser(player.id) && (
+                                {isCurrentUser(player.user_id) && (
                                   <motion.div 
                                     initial={{ scale: 0, y: 10 }}
                                     animate={{ scale: 1, y: 0 }}
@@ -373,35 +466,33 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                               {/* Battle Stats */}
                               <div className="space-y-3">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-red-300/80 font-medium">Accuracy</span>
-                                  <span className="text-white font-bold text-lg">{player.best_accuracy}%</span>
+                                  <span className="text-red-300/80 font-medium">ELO Rating</span>
+                                  <span className="text-white font-bold text-lg">{player.elo_rating}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-red-300/80 font-medium">Peak ELO</span>
+                                  <span className="text-white font-bold">{player.peak_elo}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-red-300/80 font-medium">Battles</span>
-                                  <span className="text-white font-bold">{player.attempts}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-red-300/80 font-medium">Response Time</span>
-                                  <span className="text-white font-bold">{player.best_time}s</span>
+                                  <span className="text-white font-bold">{player.total_attempts}</span>
                                 </div>
                               </div>
 
-                              {/* Power Level Bar */}
+                              {/* ELO Tier Display */}
                               <div className="mt-6">
                                 <div className="flex justify-between items-center mb-2">
-                                  <span className="text-red-300/80 text-sm font-medium">Power Level</span>
-                                  <span className="text-red-300 text-sm font-bold">{player.best_accuracy}%</span>
+                                  <span className="text-red-300/80 text-sm font-medium">Tier</span>
+                                  <span className={`text-sm font-bold bg-gradient-to-r ${getEloTier(player.elo_rating).color} bg-clip-text text-transparent`}>
+                                    {getEloTier(player.elo_rating).name}
+                                  </span>
                                 </div>
                                 <div className="h-3 bg-black/50 rounded-full overflow-hidden">
                                   <motion.div
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${player.best_accuracy}%` }}
+                                    animate={{ width: `${Math.min(100, (player.elo_rating / 2000) * 100)}%` }}
                                     transition={{ delay: 1.5 + index * 0.2, duration: 1.5 }}
-                                    className={`h-full rounded-full ${
-                                      rank === 1 
-                                        ? 'bg-gradient-to-r from-red-400 to-red-600' 
-                                        : 'bg-gradient-to-r from-red-500 to-red-700'
-                                    }`}
+                                    className={`h-full rounded-full bg-gradient-to-r ${getEloTier(player.elo_rating).color}`}
                                   />
                                 </div>
                               </div>
@@ -431,13 +522,13 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                     <div className="grid gap-4 max-w-4xl mx-auto">
                       {individualData.slice(3).map((player, index) => (
                         <motion.div
-                          key={player.id}
+                          key={player.user_id}
                           initial={{ x: -50, opacity: 0 }}
                           animate={{ x: 0, opacity: 1 }}
                           transition={{ delay: 1.8 + index * 0.1 }}
                           whileHover={{ x: 10, scale: 1.02 }}
                           className={`group flex items-center p-6 rounded-2xl border backdrop-blur-lg transition-all duration-300 ${
-                            isCurrentUser(player.id) 
+                            isCurrentUser(player.user_id) 
                               ? 'border-red-500/70 bg-gradient-to-r from-red-900/50 to-red-950/50' 
                               : 'border-red-800/30 bg-gradient-to-r from-red-950/20 to-black/20 hover:border-red-600/50'
                           }`}
@@ -451,21 +542,26 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                           <div className="flex-grow">
                             <div className="flex items-center justify-between">
                               <div>
-                                <h3 className="text-xl font-bold text-white group-hover:text-red-300 transition-colors">
-                                  {player.username}
-                                  {isCurrentUser(player.id) && (
-                                    <span className="ml-3 inline-flex items-center bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                                <div className="flex items-center space-x-3">
+                                  <h3 className="text-xl font-bold text-white group-hover:text-red-300 transition-colors">
+                                    {player.username}
+                                  </h3>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${getEloTier(player.elo_rating).color} text-white`}>
+                                    {getEloTier(player.elo_rating).name}
+                                  </span>
+                                  {isCurrentUser(player.user_id) && (
+                                    <span className="inline-flex items-center bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold">
                                       <Shield className="w-3 h-3 mr-1" />
                                       YOU
                                     </span>
                                   )}
-                                </h3>
+                                </div>
                                 <div className="flex items-center space-x-4 text-red-300/70 text-sm mt-1">
-                                  <span>Accuracy: {player.best_accuracy}%</span>
+                                  <span>ELO: {player.elo_rating}</span>
                                   <span>•</span>
-                                  <span>Battles: {player.attempts}</span>
+                                  <span>Peak: {player.peak_elo}</span>
                                   <span>•</span>
-                                  <span>Speed: {player.best_time}s</span>
+                                  <span>Battles: {player.total_attempts}</span>
                                 </div>
                               </div>
                               
@@ -488,7 +584,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                   >
                     <div className="text-center">
                       {(() => {
-                        const userRank = individualData.find(player => isCurrentUser(player.id))?.rank
+                        const userRank = individualData.find(player => isCurrentUser(player.user_id))?.rank
                         if (userRank) {
                           return (
                             <div>

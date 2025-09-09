@@ -301,6 +301,32 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
         } else {
           console.log('Ranked quiz attempt saved successfully:', rankedData)
           
+          // Update ELO rating for ranked quizzes
+          if (rankedData && rankedData[0]?.id) {
+            try {
+              console.log('Updating ELO for user:', user.id, 'Quiz:', rankedData[0].id)
+              
+              const { data: eloData, error: eloError } = await supabase
+                .rpc('update_user_elo', {
+                  user_uuid: user.id,
+                  quiz_attempt_id: rankedData[0].id,
+                  questions_data: questionsAnswered
+                })
+
+              if (eloError) {
+                console.error('Error updating ELO:', eloError)
+              } else {
+                console.log('ELO updated successfully:', eloData)
+                // Dispatch custom event with ELO data for UI updates
+                window.dispatchEvent(new CustomEvent('eloUpdated', { 
+                  detail: eloData?.[0] 
+                }))
+              }
+            } catch (error) {
+              console.error('Exception updating ELO:', error)
+            }
+          }
+          
           // Record daily completion - SIMPLE METHOD
           try {
             const username = user?.email || 'unknown'
