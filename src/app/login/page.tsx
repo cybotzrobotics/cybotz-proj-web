@@ -495,7 +495,7 @@ export default function LoginPage() {
               className="flex justify-center lg:justify-start space-x-6 text-center"
             >
               <div>
-                <div className="text-2xl font-cyber font-bold text-red-500">500+</div>
+                <div className="text-2xl font-cyber font-bold text-red-500">400+</div>
                 <div className="text-xs text-gray-400">Questions</div>
               </div>
               <div>
@@ -557,7 +557,7 @@ export default function LoginPage() {
                   onClick={() => router.push('/team')}
                   className="w-full py-3 bg-gradient-to-r from-red-800 to-red-700 hover:from-red-900 hover:to-red-800 rounded-lg text-white font-bold transition-all border border-red-600/50 hover:border-red-500"
                 >
-                  Create Team Account
+                  Create Account
                 </motion.button>
               </motion.div>
             </div>
@@ -592,6 +592,32 @@ export default function LoginPage() {
           className="absolute bottom-1/4 -right-20 w-60 h-60 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-full blur-xl"
         />
       </div>
+
+      {/* Developer Branding Footer */}
+      <motion.footer 
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 1.0, duration: 0.6 }}
+        className="absolute bottom-8 left-0 right-0 z-20"
+      >
+        <div className="flex items-center justify-center">
+          <div className="flex items-center space-x-3 text-gray-400 text-sm">
+            <motion.span 
+              whileHover={{ color: "#ef4444" }}
+              className="transition-colors duration-200"
+            >
+              Powered by Cybotz
+            </motion.span>
+            <span className="text-gray-600">•</span>
+            <motion.span 
+              whileHover={{ color: "#3b82f6" }}
+              className="transition-colors duration-200"
+            >
+              Developed by Aarya Raut
+            </motion.span>
+          </div>
+        </div>
+      </motion.footer>
     </div>
   )
 }

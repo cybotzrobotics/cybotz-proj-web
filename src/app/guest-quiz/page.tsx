@@ -166,7 +166,7 @@ export default function GuestQuizPage() {
               
               <div className="mb-4 p-4 bg-yellow-900/30 border border-yellow-600 rounded-lg">
                 <p className="text-yellow-400 text-sm">
-                  🎯 Guest Mode: You completed 5 sample questions from our collection of 350+
+                  🎯 Guest Mode: You completed 5 sample questions from our collection of 400+
                 </p>
               </div>
               
@@ -199,7 +199,7 @@ export default function GuestQuizPage() {
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div className="text-center">
-                      <div className="text-3xl font-black text-red-400">350+</div>
+                      <div className="text-3xl font-black text-red-400">400+</div>
                       <div className="text-sm text-gray-400">Questions</div>
                     </div>
                     <div className="text-center">
@@ -301,7 +301,7 @@ export default function GuestQuizPage() {
           {/* Guest Mode Notice */}
           <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-600 rounded-lg">
             <p className="text-yellow-400 text-sm text-center">
-              🎯 Guest Preview: Trying 5 sample questions • Sign up for 350+ questions and leaderboards
+              🎯 Guest Preview: Trying 5 sample questions • Sign up for 400+ questions and leaderboards
             </p>
           </div>
 
@@ -398,11 +398,11 @@ export default function GuestQuizPage() {
                           Unlock Full Access!
                         </h3>
                         <p className="text-gray-200 mb-4">
-                          You're experiencing just 5 questions from our collection of <span className="font-bold text-red-300">350+ challenging FTC questions</span>!
+                          You're experiencing just 5 questions from our collection of <span className="font-bold text-red-300">400+ challenging FTC questions</span>!
                         </p>
                         <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                           <div className="text-center">
-                            <div className="text-2xl font-bold text-red-400">350+</div>
+                            <div className="text-2xl font-bold text-red-400">400+</div>
                             <div className="text-gray-400">Questions</div>
                           </div>
                           <div className="text-center">

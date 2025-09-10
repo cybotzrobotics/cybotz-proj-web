@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import Image from 'next/image'
 import { supabase } from '@/utils/supabaseClient'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import Leaderboard from '@/components/Leaderboard'
@@ -14,7 +15,16 @@ import {
   CheckCircle,
   ArrowRight,
   Award,
-  TrendingUp
+  TrendingUp,
+  Brain,
+  Rocket,
+  Shield,
+  Timer,
+  BookOpen,
+  BarChart3,
+  Clock,
+  Calendar,
+  Zap
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -491,7 +501,13 @@ export default function DashboardPage() {
                   transition={{ type: "spring", stiffness: 400, damping: 10 }}
                 >
                   <div className="w-16 h-16 bg-gradient-to-br from-red-500 via-red-600 to-red-700 rounded-2xl flex items-center justify-center shadow-2xl">
-                    <Brain className="w-8 h-8 text-white" />
+                    <Image 
+                      src="/cybotz-logo.png" 
+                      alt="Cybotz Logo" 
+                      width={32} 
+                      height={32} 
+                      className="w-8 h-8"
+                    />
                   </div>
                   <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
                 </motion.div>
