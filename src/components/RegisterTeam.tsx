@@ -3,17 +3,12 @@ import { useState, useEffect } from "react";
 import { supabase } from "../utils/supabaseClient";
 
 interface FTCTeam {
-  team_key: string;
   team_number: number;
+  team_name: string;
   team_name_short: string;
-  team_name_long: string;
-  robot_name?: string;
   city?: string;
   state_prov?: string;
   country?: string;
-  region_key?: string;
-  league_key?: string;
-  rookie_year?: number;
 }
 
 export default function RegisterTeam() {
@@ -34,7 +29,7 @@ export default function RegisterTeam() {
   const [selectedTeam, setSelectedTeam] = useState<FTCTeam | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  // FTC Team search
+  // FTC Team search - Updated to use database cache
   useEffect(() => {
     const searchTeams = async () => {
       if (teamSearch.length < 2) {
@@ -44,44 +39,20 @@ export default function RegisterTeam() {
 
       setSearchLoading(true);
       try {
-        const response = await fetch(`https://www.thebluealliance.com/api/v3/teams/2024/simple`, {
-          headers: {
-            'X-TBA-Auth-Key': 'your-auth-key-here' // You'll need to replace this with actual key
-          }
-        });
+        // Search from cached database
+        const { data, error } = await supabase
+          .rpc('search_teams', { search_term: teamSearch })
         
-        if (response.ok) {
-          const allTeams = await response.json();
-          const filtered = allTeams.filter((team: FTCTeam) => 
-            team.team_number.toString().includes(teamSearch) ||
-            team.team_name_short?.toLowerCase().includes(teamSearch.toLowerCase()) ||
-            team.team_name_long?.toLowerCase().includes(teamSearch.toLowerCase())
-          ).slice(0, 10);
-          setFilteredTeams(filtered);
-        }
+        if (error) throw error;
+        
+        setFilteredTeams(data || []);
+        
       } catch (error) {
         console.error('Error searching teams:', error);
-        // Fallback to FTCScout API
-        try {
-          const ftcResponse = await fetch(`https://ftcscout.org/api/teams?number=${teamSearch}`);
-          if (ftcResponse.ok) {
-            const ftcData = await ftcResponse.json();
-            const mappedTeams = ftcData.data?.map((team: any) => ({
-              team_key: `frc${team.number}`,
-              team_number: team.number,
-              team_name_short: team.name,
-              team_name_long: team.name,
-              city: team.city,
-              state_prov: team.state,
-              country: team.country
-            })) || [];
-            setFilteredTeams(mappedTeams.slice(0, 10));
-          }
-        } catch (ftcError) {
-          console.error('FTCScout API also failed:', ftcError);
-        }
+        setFilteredTeams([]);
+      } finally {
+        setSearchLoading(false);
       }
-      setSearchLoading(false);
     };
 
     const timeoutId = setTimeout(searchTeams, 300);
@@ -91,7 +62,7 @@ export default function RegisterTeam() {
   const handleTeamSelect = (team: FTCTeam) => {
     setSelectedTeam(team);
     setForm(prev => ({ ...prev, teamNumber: team.team_number.toString() }));
-    setTeamSearch(`${team.team_number} - ${team.team_name_short || team.team_name_long}`);
+    setTeamSearch(`${team.team_number} - ${team.team_name_short || team.team_name}`);
     setFilteredTeams([]);
   };
 
@@ -252,12 +223,12 @@ export default function RegisterTeam() {
                       <div className="absolute z-20 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg max-h-40 overflow-y-auto">
                         {filteredTeams.map((team) => (
                           <button
-                            key={team.team_key}
+                            key={team.team_number}
                             type="button"
                             onClick={() => handleTeamSelect(team)}
                             className="w-full text-left px-3 py-2 hover:bg-gray-700 text-white text-sm border-b border-gray-700 last:border-b-0"
                           >
-                            <div className="font-medium">{team.team_number} - {team.team_name_short || team.team_name_long}</div>
+                            <div className="font-medium">{team.team_number} - {team.team_name_short || team.team_name}</div>
                             {(team.city || team.state_prov) && (
                               <div className="text-xs text-gray-400">
                                 {[team.city, team.state_prov, team.country].filter(Boolean).join(', ')}
@@ -265,6 +236,13 @@ export default function RegisterTeam() {
                             )}
                           </button>
                         ))}
+                      </div>
+                    )}
+                    
+                    {/* No results message */}
+                    {teamSearch.length >= 2 && !searchLoading && filteredTeams.length === 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg p-3 text-gray-400 text-sm">
+                        No teams found matching "{teamSearch}"
                       </div>
                     )}
                   </div>

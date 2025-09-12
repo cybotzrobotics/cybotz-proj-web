@@ -44,43 +44,30 @@ const getTeamEloTier = (avgElo: number) => {
   return { name: 'Rookie', color: 'from-gray-400 to-gray-600', icon: Target }
 }
 
-// Fetch team data from FTC Scout API (using a working endpoint)
+// Fetch team data from cached database
 const fetchTeamInfo = async (teamNumber: number) => {
   try {
-    // Try The Orange Alliance API as an alternative (it's more reliable)
-    const response = await fetch(`https://theorangealliance.org/api/team/${teamNumber}`)
-    if (response.ok) {
-      const data = await response.json()
-      if (data && data.length > 0) {
-        const team = data[0]
-        return {
-          team_name: team.team_name_short || team.team_name_long || `Team ${teamNumber}`,
-          team_location: team.city && team.state_prov 
-            ? `${team.city}, ${team.state_prov}` 
-            : team.country || 'Unknown Location'
-        }
-      }
-    }
+    // First try to get from cached database
+    const { data, error } = await supabase
+      .rpc('get_team_info', { team_num: teamNumber })
     
-    // Fallback: try to construct name from team number patterns
-    if (teamNumber >= 1 && teamNumber <= 999) {
+    if (data && data.length > 0 && !error) {
+      const team = data[0]
       return {
-        team_name: `Team ${teamNumber}`,
-        team_location: 'Pilot Program Team'
-      }
-    } else if (teamNumber >= 1000 && teamNumber <= 99999) {
-      const region = Math.floor(teamNumber / 1000)
-      return {
-        team_name: `Team ${teamNumber}`,
-        team_location: `Region ${region}`
+        team_name: team.team_name_short || team.team_name || `Team ${teamNumber}`,
+        team_location: team.city && team.state_prov 
+          ? `${team.city}, ${team.state_prov}` 
+          : team.country || 'Unknown Location'
       }
     }
   } catch (error) {
-    console.error(`Error fetching team ${teamNumber} info:`, error)
+    console.log(`Team ${teamNumber} not found in cache, using fallback`)
   }
+  
+  // Fallback for teams not in cache
   return {
     team_name: `Team ${teamNumber}`,
-    team_location: 'FTC Team'
+    team_location: 'Unknown Location'
   }
 }
 
