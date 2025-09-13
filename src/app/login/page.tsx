@@ -531,7 +531,6 @@ export default function LoginPage() {
             </motion.div>
           </motion.div>
 
-          {/* Right Side - Login Form */}
           <motion.div 
             initial={{ x: 100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -540,26 +539,6 @@ export default function LoginPage() {
           >
             <div className="w-full max-w-md">
               <LoginTeam />
-              
-              {/* Additional Actions */}
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 1 }}
-                className="mt-6 text-center"
-              >
-                <p className="text-gray-400 text-sm mb-4">
-                  Don't have an account?
-                </p>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => router.push('/team')}
-                  className="w-full py-3 bg-gradient-to-r from-red-800 to-red-700 hover:from-red-900 hover:to-red-800 rounded-lg text-white font-bold transition-all border border-red-600/50 hover:border-red-500"
-                >
-                  Create Account
-                </motion.button>
-              </motion.div>
             </div>
           </motion.div>
         </div>
