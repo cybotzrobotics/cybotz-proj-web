@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/utils/supabaseClient'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import QuizInterface from '@/components/QuizInterface'
 import { ArrowLeft, Trophy, BookOpen, Calendar, Users, Clock } from 'lucide-react'
 
-export default function QuizPage() {
+function QuizPageContent() {
   const [user, setUser] = useState<any>(null)
   const [selectedMode, setSelectedMode] = useState<'ranked' | 'practice' | null>(null)
   const [todaysAttempt, setTodaysAttempt] = useState<any>(null)
@@ -382,5 +382,17 @@ export default function QuizPage() {
         />
       </div>
     </div>
+  )
+}
+
+export default function QuizPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    }>
+      <QuizPageContent />
+    </Suspense>
   )
 }

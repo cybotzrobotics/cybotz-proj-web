@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/utils/supabaseClient'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 import AnimatedBackground from '@/components/AnimatedBackground'
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -213,5 +213,17 @@ export default function ResetPasswordPage() {
         </form>
       </motion.div>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
