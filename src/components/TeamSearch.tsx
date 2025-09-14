@@ -33,8 +33,16 @@ export default function TeamSearch({
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState("");
   
+  
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Clear API error when selectedTeam changes (e.g., after form submission)
+  useEffect(() => {
+    if (selectedTeam) {
+      setApiError("");
+    }
+  }, [selectedTeam]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -145,7 +153,10 @@ export default function TeamSearch({
       
     } catch (error) {
       console.error('API search failed:', error);
-      setApiError("External APIs unavailable. Please try again later.");
+      // Only show API error if no team is currently selected
+      if (!selectedTeam) {
+        setApiError("External APIs unavailable. Please try again later.");
+      }
       setFilteredTeams([]);
       setShowDropdown(false);
     } finally {
@@ -158,6 +169,7 @@ export default function TeamSearch({
     setTeamSearch(`${team.team_number} - ${team.team_name_short || team.team_name}`);
     setShowDropdown(false);
     setFilteredTeams([]);
+    setApiError(""); // Clear any API errors when a team is selected
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,14 +209,14 @@ export default function TeamSearch({
           {selectedTeam && !searchLoading && !apiLoading && (
             <Check className="w-5 h-5 text-green-500" />
           )}
-          {apiError && !searchLoading && !apiLoading && (
+          {apiError && !selectedTeam && !searchLoading && !apiLoading && (
             <AlertCircle className="w-5 h-5 text-red-500" />
           )}
         </div>
       </div>
 
-      {/* Error Message */}
-      {apiError && (
+      {/* Error Message - Only show if no team is selected */}
+      {apiError && !selectedTeam && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}

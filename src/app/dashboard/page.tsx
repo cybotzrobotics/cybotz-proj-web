@@ -97,18 +97,18 @@ export default function DashboardPage() {
 
       // Get user's ELO and profile data
       let { data: userProfile } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .select('elo_rating, peak_elo, team_number')
-        .eq('id', data.user.id)
+        .eq('user_id', data.user.id)
         .single()
 
       // If no profile exists, create one
       if (!userProfile) {
         console.log('No profile found, creating one...')
         const { data: newProfile, error: createError } = await supabase
-          .from('profiles')
+          .from('user_profiles')
           .insert({
-            id: data.user.id,
+            user_id: data.user.id,
             username: data.user.user_metadata?.username || data.user.email?.split('@')[0] || 'User',
             full_name: data.user.user_metadata?.full_name || data.user.email || 'Unknown User',
             team_number: data.user.user_metadata?.team_number || 12345, // Default test team

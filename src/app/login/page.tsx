@@ -495,7 +495,7 @@ export default function LoginPage() {
               className="flex justify-center lg:justify-start space-x-6 text-center"
             >
               <div>
-                <div className="text-2xl font-cyber font-bold text-red-500">400+</div>
+                <div className="text-2xl font-cyber font-bold text-red-500">550+</div>
                 <div className="text-xs text-gray-400">Questions</div>
               </div>
               <div>

@@ -70,6 +70,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [startTime] = useState(Date.now())
   const [loading, setLoading] = useState(true)
   const [submittingReview, setSubmittingReview] = useState(false)
+  const [eloChange, setEloChange] = useState<{old_elo: number, new_elo: number, total_elo_change: number} | null>(null)
 
   // Load user and questions on component mount
   useEffect(() => {
@@ -317,6 +318,10 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
                 console.error('Error updating ELO:', eloError)
               } else {
                 console.log('ELO updated successfully:', eloData)
+                // Store ELO change data for display
+                if (eloData && eloData[0]) {
+                  setEloChange(eloData[0])
+                }
                 // Dispatch custom event with ELO data for UI updates
                 window.dispatchEvent(new CustomEvent('eloUpdated', { 
                   detail: eloData?.[0] 
@@ -429,6 +434,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
     setQuizComplete(false)
     setAnswers(new Array(questions.length).fill(null))
     setIsNewBestScore(false)
+    setEloChange(null)
   }
 
   const submitQuestionForReview = async () => {
@@ -575,9 +581,31 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
               </div>
             )}
             
-            <div className="text-2xl text-gray-300 mb-8">
+            <div className="text-2xl text-gray-300 mb-4">
               {Math.round((score / questions.length) * 100)}% Correct
             </div>
+            
+            {/* ELO Change Display for Ranked Mode */}
+            {mode === 'ranked' && eloChange && (
+              <motion.div
+                initial={{ scale: 0, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ delay: 0.4, type: "spring" }}
+                className="mb-6 p-4 bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-purple-500 rounded-lg"
+              >
+                <div className="text-purple-400 font-semibold mb-2">ELO Rating Update</div>
+                <div className="flex items-center justify-center space-x-4 text-lg">
+                  <span className="text-gray-300">{eloChange.old_elo}</span>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-white font-bold">{eloChange.new_elo}</span>
+                  <span className={`font-bold ${eloChange.total_elo_change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ({eloChange.total_elo_change >= 0 ? '+' : ''}{eloChange.total_elo_change})
+                  </span>
+                </div>
+              </motion.div>
+            )}
+            
+            <div className="mb-8"></div>
             
             <div className="flex flex-wrap gap-4 justify-center">
               <button

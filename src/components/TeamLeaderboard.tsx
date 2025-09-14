@@ -101,7 +101,7 @@ export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
         console.log('No team leaderboard data, trying to create from profiles...')
         
         const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
+          .from('user_profiles')
           .select('team_number, elo_rating, peak_elo, username')
           .not('team_number', 'is', null)
           
