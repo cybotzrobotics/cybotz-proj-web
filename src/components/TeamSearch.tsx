@@ -8,6 +8,7 @@ interface FTCTeam {
   team_number: number;
   team_name: string;
   team_name_short: string;
+  team_name_long?: string;
   city?: string;
   state_prov?: string;
   country?: string;

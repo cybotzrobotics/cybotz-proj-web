@@ -6,6 +6,8 @@ interface FTCTeam {
   team_number: number;
   team_name: string;
   team_name_short: string;
+  team_name_long?: string;
+  team_key: string;
   city?: string;
   state_prov?: string;
   country?: string;
@@ -101,7 +103,7 @@ export default function RegisterTeam() {
             full_name: form.fullName,
             username: form.username,
             team_number: selectedTeam.team_number,
-            team_name: selectedTeam.team_name_short || selectedTeam.team_name_long,
+            team_name: selectedTeam.team_name_short || selectedTeam.team_name,
             team_key: selectedTeam.team_key
           }
         }
