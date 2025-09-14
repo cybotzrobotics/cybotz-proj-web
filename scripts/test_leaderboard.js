@@ -43,29 +43,31 @@ async function testLeaderboard() {
       const bestTime = validTimes.length > 0 ? Math.min(...validTimes) : 0;
       const lastAttempt = attempts > 0 ? quizAttempts[quizAttempts.length - 1].created_at : null;
 
-      // Only include users who have made at least one attempt
-      if (attempts > 0) {
-        leaderboardData.push({
-          id: profile.user_id,
-          username: profile.username,
-          full_name: profile.full_name,
-          team_number: profile.team_number,
-          team_name: profile.team_name,
-          best_score: bestScore,
-          best_accuracy: bestAccuracy,
-          best_time: bestTime,
-          attempts: attempts,
-          last_attempt: lastAttempt,
-          rank: 0 // Will be set after sorting
-        });
-      }
+              // Only include users who have made at least one attempt
+        if (attempts > 0) {
+          leaderboardData.push({
+            id: profile.user_id,
+            username: profile.username,
+            full_name: profile.full_name,
+            team_number: profile.team_number,
+            team_name: profile.team_name,
+            best_score: bestScore,
+            best_accuracy: bestAccuracy,
+            best_time: bestTime,
+            attempts: attempts,
+            last_attempt: lastAttempt,
+            rank: 0, // Will be set after sorting
+            elo_rating: profile.elo_rating,
+            peak_elo: profile.peak_elo
+          });
+        }
     }
 
-    // Sort by best score (descending), then by best accuracy (descending), then by best time (ascending)
+    // Sort by ELO rating (descending), then by peak ELO (descending), then by best score (descending)
     leaderboardData.sort((a, b) => {
-      if (a.best_score !== b.best_score) return b.best_score - a.best_score;
-      if (a.best_accuracy !== b.best_accuracy) return b.best_accuracy - a.best_accuracy;
-      return a.best_time - b.best_time;
+      if (a.elo_rating !== b.elo_rating) return b.elo_rating - a.elo_rating;
+      if (a.peak_elo !== b.peak_elo) return b.peak_elo - a.peak_elo;
+      return b.best_score - a.best_score;
     });
 
     // Assign ranks
@@ -73,17 +75,17 @@ async function testLeaderboard() {
       player.rank = index + 1;
     });
 
-    console.log('\n=== LEADERBOARD RESULTS ===');
+    console.log('\n=== ELO LEADERBOARD RESULTS ===');
     console.log(`Total players with attempts: ${leaderboardData.length}`);
     
     leaderboardData.forEach((player, index) => {
-      console.log(`${index + 1}. ${player.username} - Score: ${player.best_score}, Accuracy: ${player.best_accuracy}%, Attempts: ${player.attempts}`);
+      console.log(`${index + 1}. ${player.username} - ELO: ${player.elo_rating} (Peak: ${player.peak_elo}) - Score: ${player.best_score}, Attempts: ${player.attempts}`);
     });
 
     if (leaderboardData.length === 0) {
       console.log('⚠️  No players found with quiz attempts. Users need to complete ranked quizzes to appear on leaderboard.');
     } else {
-      console.log('✅ Leaderboard data generated successfully!');
+      console.log('✅ ELO-based leaderboard data generated successfully!');
     }
 
   } catch (error) {

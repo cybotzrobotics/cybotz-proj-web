@@ -16,6 +16,8 @@ interface IndividualLeaderboard {
   attempts: number
   last_attempt: string
   rank: number
+  elo_rating: number
+  peak_elo: number
 }
 
 interface LeaderboardProps {
@@ -166,16 +168,27 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
             best_time: bestTime,
             attempts: attempts,
             last_attempt: lastAttempt,
-            rank: 0 // Will be set after sorting
+            rank: 0, // Will be set after sorting
+            elo_rating: profile.elo_rating,
+            peak_elo: profile.peak_elo
           })
         }
       }
 
-      // Sort by best score (descending), then by best accuracy (descending), then by best time (ascending)
+      // Sort by ELO rating (descending), then by peak ELO (descending), then by best score (descending)
       leaderboardData.sort((a, b) => {
-        if (a.best_score !== b.best_score) return b.best_score - a.best_score
-        if (a.best_accuracy !== b.best_accuracy) return b.best_accuracy - a.best_accuracy
-        return a.best_time - b.best_time
+        // Get ELO ratings from the profiles
+        const userA = profiles.find(p => p.user_id === a.id)
+        const userB = profiles.find(p => p.user_id === b.id)
+        
+        const eloA = userA?.elo_rating || 1000
+        const eloB = userB?.elo_rating || 1000
+        const peakEloA = userA?.peak_elo || 1000
+        const peakEloB = userB?.peak_elo || 1000
+        
+        if (eloA !== eloB) return eloB - eloA
+        if (peakEloA !== peakEloB) return peakEloB - peakEloA
+        return b.best_score - a.best_score
       })
 
       // Assign ranks
@@ -514,10 +527,10 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
               transition={{ duration: 3, repeat: Infinity }}
             >
               <h1 className="text-5xl font-bold bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent mb-2">
-                LEADERBOARD
+                ELO LEADERBOARD
               </h1>
               <p className="text-gray-300 text-lg font-medium">
-                Hall of Champions
+                Ranked by Skill Rating
               </p>
             </motion.div>
 
@@ -582,18 +595,27 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                               <div className="text-white font-bold text-xl mb-2">
                                 {player.username}
                               </div>
-                              <div className="text-slate-300 text-sm mb-4">
+                              <div className="text-slate-300 text-sm mb-2">
                                 Team {player.team_number}
+                              </div>
+                              
+                              {/* ELO Rating - Most Prominent */}
+                              <div className={`text-3xl font-bold mb-4 ${
+                                index === 0 ? 'text-yellow-300' 
+                                : index === 1 ? 'text-slate-200'
+                                : 'text-amber-300'
+                              }`}>
+                                {player.elo_rating} ELO
                               </div>
                               
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div className="bg-black/20 rounded-lg p-2">
-                                  <div className="text-slate-400">Best Score</div>
-                                  <div className="text-white font-bold">{player.best_score}%</div>
+                                  <div className="text-slate-400">Peak ELO</div>
+                                  <div className="text-white font-bold">{player.peak_elo}</div>
                                 </div>
                                 <div className="bg-black/20 rounded-lg p-2">
-                                  <div className="text-slate-400">Attempts</div>
-                                  <div className="text-white font-bold">{player.attempts}</div>
+                                  <div className="text-slate-400">Best Score</div>
+                                  <div className="text-white font-bold">{player.best_score}%</div>
                                 </div>
                               </div>
 
@@ -649,8 +671,8 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="text-white font-bold">{player.best_score}%</div>
-                              <div className="text-gray-400 text-sm">{player.attempts} attempts</div>
+                              <div className="text-white font-bold text-lg">{player.elo_rating} ELO</div>
+                              <div className="text-gray-400 text-sm">Peak: {player.peak_elo}</div>
                             </div>
                           </div>
                         </motion.div>
