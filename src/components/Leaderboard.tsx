@@ -118,17 +118,73 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
     setLoading(true)
     
     try {
-      // Fetch individual leaderboard
-      const { data: individualData, error: individualError } = await supabase
-        .from('individual_leaderboard')
-        .select('*')
-        .limit(50)
+      // Get all user profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('user_id, username, full_name, team_number, team_name, elo_rating, peak_elo')
 
-      console.log('Individual leaderboard data:', individualData)
-      console.log('Individual leaderboard error:', individualError)
+      if (profilesError) throw profilesError
 
-      if (individualError) throw individualError
-      setIndividualData(individualData || [])
+      console.log('User profiles:', profiles)
+
+      // Build leaderboard data
+      const leaderboardData: IndividualLeaderboard[] = []
+
+      for (const profile of profiles) {
+        // Get quiz stats for this user
+        const { data: quizAttempts, error: quizError } = await supabase
+          .from('ranked_quiz_attempts')
+          .select('score, accuracy, time_taken, created_at')
+          .eq('user_id', profile.user_id)
+          .eq('is_guest', false)
+
+        if (quizError) {
+          console.error('Error fetching quiz attempts for', profile.username, quizError)
+          continue
+        }
+
+        console.log(`Quiz attempts for ${profile.username}:`, quizAttempts)
+
+        // Calculate stats
+        const attempts = quizAttempts.length
+        const bestScore = attempts > 0 ? Math.max(...quizAttempts.map(q => q.score)) : 0
+        const bestAccuracy = attempts > 0 ? Math.max(...quizAttempts.map(q => q.accuracy)) : 0
+        const validTimes = quizAttempts.filter(q => q.time_taken != null).map(q => q.time_taken)
+        const bestTime = validTimes.length > 0 ? Math.min(...validTimes) : 0
+        const lastAttempt = attempts > 0 ? quizAttempts[quizAttempts.length - 1].created_at : null
+
+        // Only include users who have made at least one attempt
+        if (attempts > 0) {
+          leaderboardData.push({
+            id: profile.user_id,
+            username: profile.username,
+            full_name: profile.full_name,
+            team_number: profile.team_number,
+            team_name: profile.team_name,
+            best_score: bestScore,
+            best_accuracy: bestAccuracy,
+            best_time: bestTime,
+            attempts: attempts,
+            last_attempt: lastAttempt,
+            rank: 0 // Will be set after sorting
+          })
+        }
+      }
+
+      // Sort by best score (descending), then by best accuracy (descending), then by best time (ascending)
+      leaderboardData.sort((a, b) => {
+        if (a.best_score !== b.best_score) return b.best_score - a.best_score
+        if (a.best_accuracy !== b.best_accuracy) return b.best_accuracy - a.best_accuracy
+        return a.best_time - b.best_time
+      })
+
+      // Assign ranks
+      leaderboardData.forEach((player, index) => {
+        player.rank = index + 1
+      })
+
+      console.log('Final leaderboard data:', leaderboardData)
+      setIndividualData(leaderboardData)
 
     } catch (error) {
       console.error('Error fetching leaderboard data:', error)
