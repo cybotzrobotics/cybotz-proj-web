@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { supabase } from '@/utils/supabaseClient'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import Leaderboard from '@/components/Leaderboard'
+import TeamLeaderboard from '@/components/TeamLeaderboard'
 import { 
   Brain, 
   Trophy, 
@@ -23,7 +24,7 @@ import {
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [currentView, setCurrentView] = useState<'dashboard' | 'leaderboard'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'leaderboard' | 'team-leaderboard'>('dashboard')
   const [userStats, setUserStats] = useState({
     questionsCorrect: 0,
     totalQuestionsAnswered: 0,
@@ -223,6 +224,18 @@ export default function DashboardPage() {
     )
   }
 
+  // Show team leaderboard view
+  if (currentView === 'team-leaderboard') {
+    return (
+      <div className="min-h-screen relative overflow-hidden">
+        <AnimatedBackground />
+        <div className="relative z-10">
+          <TeamLeaderboard onBack={() => setCurrentView('dashboard')} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       <AnimatedBackground />
@@ -396,7 +409,7 @@ export default function DashboardPage() {
               >
                 <h3 className="text-lg font-bold text-white mb-6">Quick Actions</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Start Quiz */}
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -415,7 +428,7 @@ export default function DashboardPage() {
                     </div>
                   </motion.button>
 
-                  {/* View Leaderboard */}
+                  {/* View Individual Leaderboard */}
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -427,8 +440,26 @@ export default function DashboardPage() {
                         <Trophy className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <h4 className="text-white font-bold">Leaderboard</h4>
-                        <p className="text-gray-400 text-sm">See rankings</p>
+                        <h4 className="text-white font-bold">Individual Leaderboard</h4>
+                        <p className="text-gray-400 text-sm">Player rankings</p>
+                      </div>
+                    </div>
+                  </motion.button>
+
+                  {/* View Team Leaderboard */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setCurrentView('team-leaderboard')}
+                    className="p-6 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl border border-blue-500/30 text-left hover:from-blue-500/30 hover:to-blue-600/30 transition-all"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <Users className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="text-white font-bold">Team Leaderboard</h4>
+                        <p className="text-gray-400 text-sm">Team rankings</p>
                       </div>
                     </div>
                   </motion.button>
