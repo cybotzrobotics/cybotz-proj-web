@@ -99,61 +99,65 @@ function QuizPageContent() {
   const checkTodaysAttempt = async (userId: string) => {
     setLoadingAttempt(true)
     try {
-      // Get the username (email)
-      const username = user?.email || 'unknown'
+      const today = new Date().toISOString().split('T')[0]
       
-      // Check if this username completed today's quiz
-      const { data: hasCompleted, error: checkError } = await supabase
-        .rpc('has_completed_daily_quiz', { user_name: username })
+      // Check ranked_quiz_attempts table for today's attempt
+      const { data: rankedAttempts, error: rankedError } = await supabase
+        .from('ranked_quiz_attempts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date_attempted', today)
+        .eq('is_guest', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
 
-      console.log('Has completed daily quiz:', { hasCompleted, checkError, username })
+      console.log('Checking today\'s ranked attempts:', { rankedAttempts, rankedError, userId, today })
 
-      if (checkError) {
-        console.error('Error checking daily completion:', checkError)
-        setTodaysAttempt(null)
+      if (rankedAttempts && rankedAttempts.length > 0) {
+        const rankedAttempt = rankedAttempts[0] // Get the latest attempt
+        console.log('User already took today\'s ranked quiz:', rankedAttempt)
+        setTodaysAttempt({
+          id: rankedAttempt.id,
+          user_id: rankedAttempt.user_id,
+          score: rankedAttempt.score,
+          total_questions: rankedAttempt.total_questions,
+          time_taken: rankedAttempt.time_taken,
+          created_at: rankedAttempt.created_at,
+          date_attempted: rankedAttempt.date_attempted,
+          accuracy: rankedAttempt.accuracy,
+          elo_before: rankedAttempt.elo_before,
+          elo_after: rankedAttempt.elo_after,
+          elo_change: rankedAttempt.elo_change
+        })
+        
+        // Get user's current rank from leaderboard
+        try {
+          const { data: profileData } = await supabase
+            .from('user_profiles')
+            .select('username')
+            .eq('user_id', userId)
+            .single()
+            
+          if (profileData) {
+            // Get rank by counting users with higher ELO
+            const { count } = await supabase
+              .from('user_profiles')
+              .select('*', { count: 'exact', head: true })
+              .gt('elo_rating', rankedAttempt.elo_after || 1000)
+            
+            setUserRank((count || 0) + 1)
+          }
+        } catch (error) {
+          console.error('Error getting user rank:', error)
+        }
+        
         return
       }
 
-      if (hasCompleted) {
-        // Get their completion record to show score
-        const { data: completion } = await supabase
-          .from('daily_quiz_completions')
-          .select('*')
-          .eq('username', username)
-          .eq('quiz_date', new Date().toISOString().split('T')[0])
-          .single()
-
-        console.log('User completion:', completion)
-
-        // Get their rank from leaderboard
-        const { data: leaderboard } = await supabase
-          .from('individual_leaderboard')
-          .select('rank')
-          .eq('username', username)
-          .single()
-
-        console.log('User rank:', leaderboard)
-
-        if (completion) {
-          setTodaysAttempt({
-            id: completion.id.toString(),
-            user_id: userId,
-            score: completion.score,
-            total_questions: 15, // Daily quiz always has 15 questions
-            time_taken: 0, // We don't track time anymore
-            created_at: completion.completed_at,
-            date_attempted: completion.quiz_date,
-            accuracy: Math.round((completion.score / 15) * 100) // Calculate accuracy
-          })
-          
-          if (leaderboard) {
-            setUserRank(leaderboard.rank)
-          }
-        }
-      } else {
-        // User hasn't completed today's quiz
-        setTodaysAttempt(null)
-      }
+      // If no ranked attempt found, user can take ranked quiz
+      console.log('No ranked attempt found for today')
+      setTodaysAttempt(null)
+      
     } catch (error) {
       console.error('Error checking today\'s attempt:', error)
       setTodaysAttempt(null)
@@ -244,22 +248,22 @@ function QuizPageContent() {
                   </div>
                   <h2 className="text-2xl font-cyber font-bold text-white mb-4">Daily Ranked Quiz</h2>
                 <p className="text-gray-300 mb-6">
-                  Test your knowledge with today's daily challenge
+                  Test your knowledge with today's ranked challenge • <strong>One attempt per day</strong>
                 </p>
                 
                 {!todaysAttempt && (
                   <div className="space-y-3 text-gray-300">
                     <div className="flex items-center justify-center space-x-2">
                       <Calendar className="w-4 h-4" />
-                      <span>15 questions • Changes daily</span>
-                    </div>
-                    <div className="flex items-center justify-center space-x-2">
-                      <Users className="w-4 h-4" />
-                      <span>Affects leaderboard ranking</span>
+                      <span>10 questions • New daily challenge</span>
                     </div>
                     <div className="flex items-center justify-center space-x-2">
                       <Trophy className="w-4 h-4" />
-                      <span>Ranked by score, accuracy & time</span>
+                      <span>Affects ELO rating & leaderboard</span>
+                    </div>
+                    <div className="flex items-center justify-center space-x-2">
+                      <Clock className="w-4 h-4" />
+                      <span>One attempt per day only</span>
                     </div>
                   </div>
                 )}                  {loadingAttempt ? (
@@ -269,21 +273,53 @@ function QuizPageContent() {
                   ) : todaysAttempt ? (
                     <div className="mt-6 space-y-3">
                       <div className="bg-green-900/30 border border-green-500/50 rounded-lg p-4">
-                        <div className="text-green-400 font-semibold mb-2">✅ Completed Today!</div>
-                        <div className="text-white text-lg font-bold">
-                          Score: {todaysAttempt.score}/{todaysAttempt.total_questions}
+                        <div className="text-green-400 font-semibold mb-3 flex items-center justify-center">
+                          ✅ Daily Ranked Quiz Completed!
                         </div>
-                        <div className="text-gray-300 text-sm">
-                          Accuracy: {todaysAttempt.accuracy}%
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="text-center">
+                            <div className="text-white text-lg font-bold">
+                              {todaysAttempt.score}/{todaysAttempt.total_questions}
+                            </div>
+                            <div className="text-gray-300">Score</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-white text-lg font-bold">
+                              {todaysAttempt.accuracy}%
+                            </div>
+                            <div className="text-gray-300">Accuracy</div>
+                          </div>
                         </div>
+                        
+                        {/* ELO Information */}
+                        {todaysAttempt.elo_change && (
+                          <div className="mt-3 pt-3 border-t border-green-500/30">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-300">ELO Rating:</span>
+                              <span className="text-white font-bold">
+                                {todaysAttempt.elo_before} → {todaysAttempt.elo_after}
+                                <span className={`ml-2 ${todaysAttempt.elo_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  ({todaysAttempt.elo_change > 0 ? '+' : ''}{todaysAttempt.elo_change})
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
                         {userRank && (
-                          <div className="text-yellow-400 text-sm mt-2">
-                            🏆 Leaderboard Rank: #{userRank}
+                          <div className="text-yellow-400 text-sm mt-2 text-center">
+                            🏆 Current Leaderboard Rank: #{userRank}
                           </div>
                         )}
                       </div>
-                      <div className="text-gray-400 text-sm text-center">
-                        Come back tomorrow for a new challenge!
+                      
+                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-3">
+                        <div className="text-orange-400 text-sm text-center">
+                          <strong>⏰ One ranked quiz per day!</strong>
+                        </div>
+                        <div className="text-gray-300 text-xs text-center mt-1">
+                          Come back tomorrow for a new ranked challenge. Try practice mode to keep improving!
+                        </div>
                       </div>
                     </div>
                   ) : (
