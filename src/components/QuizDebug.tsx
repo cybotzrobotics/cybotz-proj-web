@@ -243,9 +243,9 @@ export default function QuizDebug() {
   }
 
   const insertNewQuestions = async () => {
+    // Temporarily allow question insertion without auth for migration
     if (!user) {
-      setError('No user logged in')
-      return
+      console.log('⚠️ Inserting questions without auth (migration mode)')
     }
 
     try {

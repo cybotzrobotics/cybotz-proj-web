@@ -1,0 +1,35 @@
+[Unit]
+Description=FTC Teams Sync Service
+Documentation=https://github.com/ftcaarya/cybotz-proj-web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/cybotz-proj-web
+ExecStart=/usr/bin/node /home/pi/cybotz-proj-web/scripts/teams-sync-service.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ftc-teams-sync
+
+# Environment variables
+Environment=NODE_ENV=production
+EnvironmentFile=/home/pi/cybotz-proj-web/.env.local
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log /home/pi/cybotz-proj-web
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
