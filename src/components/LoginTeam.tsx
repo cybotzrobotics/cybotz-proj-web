@@ -32,6 +32,9 @@ export default function LoginTeam() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+  const [showResendVerification, setShowResendVerification] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendEmail, setResendEmail] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -98,7 +101,7 @@ export default function LoginTeam() {
       if (error) throw error;
 
       if (data.user && !data.user.email_confirmed_at) {
-        setSuccess("Registration successful! Please check your email to verify your account.");
+        setSuccess("Registration successful! Please check your email to verify your account. The verification link will expire in 24 hours.");
       } else {
         setSuccess("Registration successful! You can now log in.");
       }
@@ -127,9 +130,9 @@ export default function LoginTeam() {
     setError("");
     setSuccess("");
     
+    const input = form.emailOrUsername.trim();
+    
     try {
-      const input = form.emailOrUsername.trim();
-      
       // Check if input is an email (contains @) or username
       const isEmail = input.includes('@');
       
@@ -153,6 +156,12 @@ export default function LoginTeam() {
     } catch (err: any) {
       if (err.message.includes('Invalid login credentials')) {
         setError('Invalid email or password. Please check your credentials and try again.');
+      } else if (err.message.includes('Email not confirmed')) {
+        setError('Your email address hasn\'t been verified yet. Use the "Resend Verification" button below to get a new verification email.');
+        setResendEmail(input);
+        setShowResendVerification(true);
+      } else if (err.message.includes('signup_disabled')) {
+        setError('Account signup is temporarily disabled. Please contact support.');
       } else {
         setError(err.message || "Login failed");
       }
@@ -184,6 +193,48 @@ export default function LoginTeam() {
     }
   };
 
+  const handleResendVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResendLoading(true);
+    setError("");
+    setSuccess("");
+    
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: resendEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        }
+      });
+      
+      if (error) throw error;
+      
+      setSuccess("Verification email resent! Please check your inbox and spam folder. The new link will be valid for 24 hours.");
+      setShowResendVerification(false);
+      setResendEmail("");
+    } catch (err: any) {
+      if (err.message.includes('Already confirmed')) {
+        setError("This email is already verified! You can log in normally.");
+      } else if (err.message.includes('User not found')) {
+        setError("No account found with this email. Please sign up first or check the email address.");
+      } else {
+        setError(err.message || "Failed to resend verification email");
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const resetAllStates = () => {
+    setShowForgotPassword(false);
+    setShowResendVerification(false);
+    setError("");
+    setSuccess("");
+    setResetEmail("");
+    setResendEmail("");
+  };
+
   return (
     <div className="bg-black/90 rounded-xl p-8 shadow-2xl border border-red-800/50 backdrop-blur-sm">
       {/* Header with Toggle */}
@@ -194,9 +245,7 @@ export default function LoginTeam() {
             whileTap={{ scale: 0.95 }}
             onClick={() => {
               setIsSignUp(false);
-              setShowForgotPassword(false);
-              setError("");
-              setSuccess("");
+              resetAllStates();
             }}
             className={`px-6 py-2 rounded-lg font-semibold transition-all flex items-center space-x-2 ${
               !isSignUp 
@@ -213,9 +262,7 @@ export default function LoginTeam() {
             whileTap={{ scale: 0.95 }}
             onClick={() => {
               setIsSignUp(true);
-              setShowForgotPassword(false);
-              setError("");
-              setSuccess("");
+              resetAllStates();
             }}
             className={`px-6 py-2 rounded-lg font-semibold transition-all flex items-center space-x-2 ${
               isSignUp 
@@ -229,11 +276,109 @@ export default function LoginTeam() {
         </div>
         
         <h2 className="text-2xl font-bold text-red-500">
-          {showForgotPassword ? "Reset Password" : isSignUp ? "Create Account" : "Welcome Back"}
+          {showForgotPassword ? "Reset Password" : 
+           showResendVerification ? "Resend Verification" : 
+           isSignUp ? "Create Account" : "Welcome Back"}
         </h2>
       </div>
       
-      {!showForgotPassword ? (
+      {/* Form Content */}
+      {showForgotPassword ? (
+        /* FORGOT PASSWORD FORM */
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <div className="text-gray-300 text-sm mb-4">
+              Enter your email address and we'll send you a link to reset your password.
+            </div>
+            
+            <div>
+              <label className="block text-gray-300 mb-2">Email</label>
+              <input 
+                value={resetEmail} 
+                onChange={(e) => setResetEmail(e.target.value)}
+                required 
+                type="email" 
+                placeholder="your.email@example.com" 
+                className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={resetLoading} 
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-bold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {resetLoading ? "Sending..." : "Send Reset Email"}
+            </button>
+            
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={resetAllStates}
+                className="text-red-400 hover:text-red-300 text-sm underline transition-colors flex items-center justify-center space-x-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Login</span>
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      ) : showResendVerification ? (
+        /* RESEND VERIFICATION FORM */
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <form onSubmit={handleResendVerification} className="space-y-4">
+            <div className="text-gray-300 text-sm mb-4">
+              <p>Didn't receive a verification email or did your link expire?</p>
+              <p className="mt-1 text-xs text-gray-400">
+                We'll send you a fresh verification link that's valid for 24 hours.
+              </p>
+            </div>
+            
+            <div>
+              <label className="block text-gray-300 mb-2">Email</label>
+              <input 
+                value={resendEmail} 
+                onChange={(e) => setResendEmail(e.target.value)}
+                required 
+                type="email" 
+                placeholder="your.email@example.com" 
+                className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={resendLoading} 
+              className="w-full py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 rounded-lg text-white font-bold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {resendLoading ? "Sending..." : "Resend Verification Email"}
+            </button>
+            
+            <div className="text-center space-y-2">
+              <button
+                type="button"
+                onClick={resetAllStates}
+                className="text-red-400 hover:text-red-300 text-sm underline transition-colors flex items-center justify-center space-x-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Login</span>
+              </button>
+              <div className="text-xs text-gray-500">
+                Already verified? Try logging in normally.
+              </div>
+            </div>
+          </form>
+        </motion.div>
+      ) : (
+        /* LOGIN/SIGNUP FORM */
         <motion.div
           key={isSignUp ? "signup" : "login"}
           initial={{ opacity: 0, x: isSignUp ? 20 : -20 }}
@@ -379,69 +524,29 @@ export default function LoginTeam() {
                 {loading ? "Signing In..." : "Sign In"}
               </button>
               
-              <div className="text-center">
+              <div className="text-center space-y-2">
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-red-400 hover:text-red-300 text-sm underline transition-colors"
+                  className="text-red-400 hover:text-red-300 text-sm underline transition-colors block mx-auto"
                 >
                   Forgot your password?
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setShowResendVerification(true)}
+                  className="text-yellow-400 hover:text-yellow-300 text-sm underline transition-colors block mx-auto"
+                >
+                  Didn't receive verification email?
                 </button>
               </div>
             </form>
           )}
         </motion.div>
-      ) : (
-        /* FORGOT PASSWORD FORM */
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <form onSubmit={handleForgotPassword} className="space-y-4">
-            <div className="text-gray-300 text-sm mb-4">
-              Enter your email address and we'll send you a link to reset your password.
-            </div>
-            
-            <div>
-              <label className="block text-gray-300 mb-2">Email</label>
-              <input 
-                value={resetEmail} 
-                onChange={(e) => setResetEmail(e.target.value)}
-                required 
-                type="email" 
-                placeholder="your.email@example.com" 
-                className="w-full p-3 rounded-lg bg-black/70 border border-red-700/50 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none transition-colors" 
-              />
-            </div>
-            
-            <button 
-              type="submit" 
-              disabled={resetLoading} 
-              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-bold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {resetLoading ? "Sending..." : "Send Reset Email"}
-            </button>
-            
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForgotPassword(false);
-                  setResetEmail("");
-                  setError("");
-                  setSuccess("");
-                }}
-                className="text-red-400 hover:text-red-300 text-sm underline transition-colors flex items-center justify-center space-x-2"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back to Login</span>
-              </button>
-            </div>
-          </form>
-        </motion.div>
       )}
       
+      {/* Error and Success Messages */}
       {error && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
