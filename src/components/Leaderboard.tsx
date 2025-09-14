@@ -1,8 +1,8 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/utils/supabaseClient'
-import { Trophy, User, Medal, Target, ArrowLeft, Sparkles, Star, Crown } from 'lucide-react'
+import { Trophy, User, Medal, ArrowLeft, Star, Crown } from 'lucide-react'
 
 interface IndividualLeaderboard {
   id: string
@@ -24,55 +24,14 @@ interface LeaderboardProps {
   onBack: () => void
 }
 
-interface Ball {
-  id: number
-  x: number
-  y: number
-  velocityX: number
-  velocityY: number
-  power: number
-  trail: { x: number; y: number }[]
-}
-
-interface Particle {
-  id: number
-  x: number
-  y: number
-  velocityX: number
-  velocityY: number
-  life: number
-  color: string
-}
-
 export default function Leaderboard({ onBack }: LeaderboardProps) {
   const [individualData, setIndividualData] = useState<IndividualLeaderboard[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
-  
-  // Mini-game state
-  const [balls, setBalls] = useState<Ball[]>([])
-  const [score, setScore] = useState(0)
-  const [particles, setParticles] = useState<Particle[]>([])
-  const [gameContainer, setGameContainer] = useState<DOMRect | null>(null)
-  const gameRef = useRef<HTMLDivElement>(null)
-  const ballIdRef = useRef(0)
-  const particleIdRef = useRef(0)
-  const animationFrameRef = useRef<number>()
-  
-  // Game constants
-  const BALL_SIZE = 20 // 5 inches diameter scaled down
-  const TARGET_SIZE = 80
-  const GRAVITY = 0.3
-  const FRICTION = 0.99
 
   useEffect(() => {
     getCurrentUser()
     fetchLeaderboardData()
-    
-    // Initialize game container
-    if (gameRef.current) {
-      setGameContainer(gameRef.current.getBoundingClientRect())
-    }
 
     // Listen for quiz completion events to refresh leaderboard
     const handleQuizCompleted = () => {
@@ -82,32 +41,9 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
 
     window.addEventListener('quizCompleted', handleQuizCompleted)
     
-    // Start game animation loop
-    const gameLoop = () => {
-      updateBalls()
-      updateParticles()
-      animationFrameRef.current = requestAnimationFrame(gameLoop)
-    }
-    gameLoop()
-    
     return () => {
       window.removeEventListener('quizCompleted', handleQuizCompleted)
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
     }
-  }, [])
-
-  useEffect(() => {
-    // Update game container on resize
-    const handleResize = () => {
-      if (gameRef.current) {
-        setGameContainer(gameRef.current.getBoundingClientRect())
-      }
-    }
-    
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   const getCurrentUser = async () => {
@@ -206,133 +142,6 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
     }
   }
 
-  // Mini-game functions
-  const updateBalls = () => {
-    setBalls(prevBalls => {
-      return prevBalls.map(ball => {
-        const newBall = { ...ball }
-        
-        // Apply gravity and friction
-        newBall.velocityY += GRAVITY
-        newBall.velocityX *= FRICTION
-        newBall.velocityY *= FRICTION
-        
-        // Update position
-        newBall.x += newBall.velocityX
-        newBall.y += newBall.velocityY
-        
-        // Update trail
-        newBall.trail = [...newBall.trail, { x: newBall.x, y: newBall.y }].slice(-8)
-        
-        // Bounce off walls
-        if (gameContainer) {
-          if (newBall.x <= BALL_SIZE/2) {
-            newBall.x = BALL_SIZE/2
-            newBall.velocityX *= -0.7
-          }
-          if (newBall.x >= gameContainer.width - BALL_SIZE/2) {
-            newBall.x = gameContainer.width - BALL_SIZE/2
-            newBall.velocityX *= -0.7
-          }
-          if (newBall.y <= BALL_SIZE/2) {
-            newBall.y = BALL_SIZE/2
-            newBall.velocityY *= -0.7
-          }
-          if (newBall.y >= gameContainer.height - BALL_SIZE/2) {
-            newBall.y = gameContainer.height - BALL_SIZE/2
-            newBall.velocityY *= -0.7
-          }
-        }
-        
-        return newBall
-      }).filter(ball => {
-        // Remove balls that are too slow or out of bounds
-        const speed = Math.sqrt(ball.velocityX ** 2 + ball.velocityY ** 2)
-        return speed > 0.1 && gameContainer && 
-               ball.x >= -100 && ball.x <= gameContainer.width + 100 &&
-               ball.y >= -100 && ball.y <= gameContainer.height + 100
-      })
-    })
-  }
-
-  const updateParticles = () => {
-    setParticles(prevParticles => {
-      return prevParticles.map(particle => ({
-        ...particle,
-        x: particle.x + particle.velocityX,
-        y: particle.y + particle.velocityY,
-        velocityY: particle.velocityY + 0.1,
-        life: particle.life - 1
-      })).filter(particle => particle.life > 0)
-    })
-  }
-
-  const createParticles = (x: number, y: number, color: string) => {
-    const newParticles = Array.from({ length: 8 }, () => ({
-      id: particleIdRef.current++,
-      x,
-      y,
-      velocityX: (Math.random() - 0.5) * 10,
-      velocityY: (Math.random() - 0.5) * 10,
-      life: 30,
-      color
-    }))
-    setParticles(prev => [...prev, ...newParticles])
-  }
-
-  const shootBall = (event: React.MouseEvent) => {
-    if (!gameContainer) return
-    
-    const rect = gameRef.current?.getBoundingClientRect()
-    if (!rect) return
-    
-    const clickX = event.clientX - rect.left
-    const clickY = event.clientY - rect.top
-    
-    // Calculate power based on distance from launcher (bottom-left corner)
-    const launcherX = 50
-    const launcherY = gameContainer.height - 50
-    
-    const deltaX = clickX - launcherX
-    const deltaY = clickY - launcherY
-    const distance = Math.sqrt(deltaX ** 2 + deltaY ** 2)
-    const power = Math.min(distance / 10, 20)
-    
-    // Normalize direction and apply power
-    const direction = Math.sqrt(deltaX ** 2 + deltaY ** 2)
-    const velocityX = (deltaX / direction) * power
-    const velocityY = (deltaY / direction) * power
-    
-    const newBall: Ball = {
-      id: ballIdRef.current++,
-      x: launcherX,
-      y: launcherY,
-      velocityX,
-      velocityY,
-      power,
-      trail: []
-    }
-    
-    setBalls(prev => [...prev, newBall])
-    createParticles(launcherX, launcherY, '#ff6b6b')
-  }
-
-  const checkTargetHit = (ball: Ball) => {
-    if (!gameContainer) return false
-    
-    const targetX = gameContainer.width - 100
-    const targetY = gameContainer.height - 100
-    
-    const distance = Math.sqrt((ball.x - targetX) ** 2 + (ball.y - targetY) ** 2)
-    
-    if (distance < TARGET_SIZE / 2) {
-      setScore(prev => prev + 1)
-      createParticles(targetX, targetY, '#4ade80')
-      return true
-    }
-    return false
-  }
-
   const isCurrentUser = (userId: string) => {
     return currentUser?.id === userId
   }
@@ -360,135 +169,42 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-gray-900 via-red-900 to-black">
-      {/* Interactive Game Background */}
-      <div 
-        ref={gameRef}
-        className="absolute inset-0 cursor-crosshair"
-        onClick={shootBall}
-      >
-        {/* Animated Background Elements */}
-        <div className="absolute inset-0">
-          {/* Floating geometric shapes */}
-          {[...Array(6)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute"
-              style={{
-                left: `${15 + (i % 3) * 30}%`,
-                top: `${20 + Math.floor(i / 3) * 40}%`,
-              }}
-              animate={{
-                rotate: [0, 360],
-                scale: [1, 1.2, 1],
-                opacity: [0.1, 0.3, 0.1],
-              }}
-              transition={{
-                duration: 8 + i * 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            >
-              <div className={`w-16 h-16 border-2 rounded-lg ${
-                i % 2 === 0 ? 'border-red-400/20' : 'border-orange-400/20'
-              }`} />
-            </motion.div>
-          ))}
-          
-          {/* Subtle grid pattern */}
-          <div className="absolute inset-0 opacity-5">
-            <div className="grid grid-cols-12 gap-8 h-full">
-              {[...Array(144)].map((_, i) => (
-                <div key={i} className="border border-white/10" />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Mini-game Elements */}
-        {/* Pickleball Launcher (bottom-left corner) */}
-        <motion.div
-          className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-full shadow-lg border-2 border-orange-300"
-          whileHover={{ scale: 1.1 }}
-          animate={{
-            boxShadow: [
-              "0 0 10px rgba(251, 146, 60, 0.5)",
-              "0 0 20px rgba(251, 146, 60, 0.8)",
-              "0 0 10px rgba(251, 146, 60, 0.5)",
-            ],
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="absolute inset-2 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-full flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-orange-800" />
-          </div>
-        </motion.div>
-
-        {/* Target (bottom-right corner) */}
-        <motion.div
-          className="absolute bottom-4 right-24 w-20 h-20 rounded-full border-4 border-green-400 bg-green-400/10"
-          animate={{
-            borderColor: ["#4ade80", "#22c55e", "#4ade80"],
-            scale: [1, 1.05, 1],
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="absolute inset-2 rounded-full border-2 border-green-500 bg-green-500/20">
-            <div className="absolute inset-2 rounded-full border-2 border-green-600 bg-green-600/30 flex items-center justify-center">
-              <Target className="w-6 h-6 text-green-400" />
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Score Display */}
-        <motion.div
-          className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-red-400/30"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="text-red-400 font-bold text-lg">
-            Score: {score}
-          </div>
-        </motion.div>
-
-        {/* Flying Balls */}
-        {balls.map(ball => (
-          <motion.div key={ball.id}>
-            {/* Ball trail */}
-            {ball.trail.map((point, index) => (
-              <div
-                key={index}
-                className="absolute w-2 h-2 bg-orange-400 rounded-full"
-                style={{
-                  left: point.x - 1,
-                  top: point.y - 1,
-                  opacity: index / ball.trail.length * 0.6,
-                }}
-              />
-            ))}
-            {/* Main ball */}
-            <div
-              className="absolute w-5 h-5 bg-gradient-to-br from-yellow-300 to-orange-500 rounded-full shadow-lg border border-orange-300"
-              style={{
-                left: ball.x - BALL_SIZE/2,
-                top: ball.y - BALL_SIZE/2,
-              }}
-            />
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0">
+        {/* Floating geometric shapes */}
+        {[...Array(6)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute"
+            style={{
+              left: `${15 + (i % 3) * 30}%`,
+              top: `${20 + Math.floor(i / 3) * 40}%`,
+            }}
+            animate={{
+              rotate: [0, 360],
+              scale: [1, 1.2, 1],
+              opacity: [0.1, 0.3, 0.1],
+            }}
+            transition={{
+              duration: 8 + i * 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          >
+            <div className={`w-16 h-16 border-2 rounded-lg ${
+              i % 2 === 0 ? 'border-red-400/20' : 'border-orange-400/20'
+            }`} />
           </motion.div>
         ))}
-
-        {/* Particles */}
-        {particles.map(particle => (
-          <div
-            key={particle.id}
-            className="absolute w-1 h-1 rounded-full"
-            style={{
-              left: particle.x,
-              top: particle.y,
-              backgroundColor: particle.color,
-              opacity: particle.life / 30,
-            }}
-          />
-        ))}
+        
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="grid grid-cols-12 gap-8 h-full">
+            {[...Array(144)].map((_, i) => (
+              <div key={i} className="border border-white/10" />
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Content Overlay */}
