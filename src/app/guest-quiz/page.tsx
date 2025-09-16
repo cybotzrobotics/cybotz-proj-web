@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Clock, CheckCircle, XCircle, RotateCcw, Zap, Trophy, User } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/utils/supabaseClient'
 import AnimatedBackground from '@/components/AnimatedBackground'
 
 interface Question {
@@ -16,8 +17,8 @@ interface Question {
   difficulty: string
 }
 
-// Fixed set of 5 guest questions
-const guestQuestions: Question[] = [
+// Fallback questions in case database is unavailable
+const fallbackQuestions: Question[] = [
   {
     id: 'guest-1',
     question: 'What does FTC stand for?',
@@ -66,6 +67,7 @@ const guestQuestions: Question[] = [
 ]
 
 export default function GuestQuizPage() {
+  const [questions, setQuestions] = useState<Question[]>([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
@@ -73,10 +75,51 @@ export default function GuestQuizPage() {
   const [timeLeft, setTimeLeft] = useState(30)
   const [isTimerActive, setIsTimerActive] = useState(true)
   const [quizComplete, setQuizComplete] = useState(false)
-  const [answers, setAnswers] = useState<(number | null)[]>(new Array(5).fill(null))
+  const [answers, setAnswers] = useState<(number | null)[]>([])
+  const [loading, setLoading] = useState(true)
   
   const router = useRouter()
-  const currentQuestion = guestQuestions[currentQuestionIndex]
+
+  // Load the last 5 questions from the database
+  useEffect(() => {
+    loadGuestQuestions()
+  }, [])
+
+  const loadGuestQuestions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_questions')
+        .select('*')
+        .order('id', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        console.error('Error loading guest questions:', error)
+        // Fallback to hardcoded questions if database fails
+        setQuestions(fallbackQuestions)
+      } else {
+        const formattedQuestions: Question[] = data.map(q => ({
+          id: q.id,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correct_answer,
+          explanation: q.explanation || '',
+          category: q.category || 'General',
+          difficulty: typeof q.difficulty === 'string' ? q.difficulty : 'medium'
+        }))
+        setQuestions(formattedQuestions)
+      }
+      setAnswers(new Array(5).fill(null))
+    } catch (error) {
+      console.error('Error loading guest questions:', error)
+      setQuestions(fallbackQuestions)
+      setAnswers(new Array(5).fill(null))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const currentQuestion = questions[currentQuestionIndex]
 
   // Timer effect
   useEffect(() => {
@@ -112,7 +155,7 @@ export default function GuestQuizPage() {
   }
 
   const nextQuestion = () => {
-    if (currentQuestionIndex < guestQuestions.length - 1) {
+    if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1)
       setSelectedAnswer(null)
       setShowExplanation(false)
@@ -434,7 +477,7 @@ export default function GuestQuizPage() {
                         onClick={nextQuestion}
                         className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl text-white font-bold text-lg transition-all transform hover:scale-105"
                       >
-                        {currentQuestionIndex < guestQuestions.length - 1 ? 'Next Question' : 'Finish Quiz'}
+                        {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
                       </button>
                     </motion.div>
                   </div>

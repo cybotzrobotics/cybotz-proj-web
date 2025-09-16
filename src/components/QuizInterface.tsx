@@ -71,6 +71,8 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [loading, setLoading] = useState(true)
   const [submittingReview, setSubmittingReview] = useState(false)
   const [eloChange, setEloChange] = useState<{old_elo: number, new_elo: number, total_elo_change: number} | null>(null)
+  const [reviewExplanation, setReviewExplanation] = useState('')
+  const [showReviewForm, setShowReviewForm] = useState(false)
 
   // Load user and questions on component mount
   useEffect(() => {
@@ -453,7 +455,8 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           category: currentQuestion.category,
           difficulty: currentQuestion.difficulty,
           season: season,
-          submitted_by: user.id
+          submitted_by: user.id,
+          review_notes: reviewExplanation.trim() || null // Add the optional explanation
         })
 
       if (error) {
@@ -461,6 +464,8 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
         alert('Failed to submit question for review. Please try again.')
       } else {
         alert('Question submitted for review successfully!')
+        setReviewExplanation('') // Clear the explanation
+        setShowReviewForm(false) // Hide the form
       }
     } catch (error) {
       console.error('Error submitting question for review:', error)
@@ -786,19 +791,58 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
                         </span>
                       </div>
                       
-                      {/* Send for Review Button */}
+                      {/* Send for Review Section */}
                       {user && (
                         <div className="mt-4 pt-4 border-t border-blue-500/30">
-                          <button
-                            onClick={submitQuestionForReview}
-                            disabled={submittingReview}
-                            className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 rounded-lg text-white text-sm font-medium transition-colors flex items-center space-x-2"
-                          >
-                            <span>{submittingReview ? 'Submitting...' : 'Send Question for Review'}</span>
-                          </button>
-                          <p className="text-xs text-gray-400 mt-2">
-                            Report issues with this question for admin review
-                          </p>
+                          {!showReviewForm ? (
+                            <div>
+                              <button
+                                onClick={() => setShowReviewForm(true)}
+                                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white text-sm font-medium transition-colors flex items-center space-x-2"
+                              >
+                                <span>Send Question for Review</span>
+                              </button>
+                              <p className="text-xs text-gray-400 mt-2">
+                                Report issues with this question for admin review
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">
+                                  Explain the issue (optional):
+                                </label>
+                                <textarea
+                                  value={reviewExplanation}
+                                  onChange={(e) => setReviewExplanation(e.target.value)}
+                                  placeholder="Describe what's wrong with this question (e.g., incorrect answer, unclear wording, outdated information)..."
+                                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+                                  rows={3}
+                                />
+                              </div>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={submitQuestionForReview}
+                                  disabled={submittingReview}
+                                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 rounded-lg text-white text-sm font-medium transition-colors"
+                                >
+                                  {submittingReview ? 'Submitting...' : 'Submit Review'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowReviewForm(false)
+                                    setReviewExplanation('')
+                                  }}
+                                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-white text-sm font-medium transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-400">
+                                Your feedback helps improve question quality for everyone
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </motion.div>
