@@ -324,14 +324,10 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                                 {player.elo_rating} ELO
                               </div>
                               
-                              <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div className="grid grid-cols-1 gap-4 text-sm">
                                 <div className="bg-black/20 rounded-lg p-2">
                                   <div className="text-slate-400">Peak ELO</div>
                                   <div className="text-white font-bold">{player.peak_elo}</div>
-                                </div>
-                                <div className="bg-black/20 rounded-lg p-2">
-                                  <div className="text-slate-400">Best Score</div>
-                                  <div className="text-white font-bold">{player.best_score}%</div>
                                 </div>
                               </div>
 
