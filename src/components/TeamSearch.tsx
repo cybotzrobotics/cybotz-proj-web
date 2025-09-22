@@ -33,6 +33,55 @@ export default function TeamSearch({
   const [showDropdown, setShowDropdown] = useState(false);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState("");
+  // Manual team entry state
+  const [manualTeamNumber, setManualTeamNumber] = useState("");
+  const [manualTeamName, setManualTeamName] = useState("");
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualError, setManualError] = useState("");
+  // Manual team submit handler
+  const handleManualTeamSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setManualError("");
+    if (!manualTeamNumber || !manualTeamName) {
+      setManualError("Please enter both team number and team name.");
+      return;
+    }
+    const teamNumberInt = parseInt(manualTeamNumber, 10);
+    if (isNaN(teamNumberInt)) {
+      setManualError("Team number must be a number.");
+      return;
+    }
+    setManualSubmitting(true);
+    try {
+      // Insert into database
+      const { data, error } = await supabase
+        .from('ftc_teams_cache')
+        .insert({
+          team_number: teamNumberInt,
+          team_name: manualTeamName,
+          team_name_short: manualTeamName
+        })
+        .select()
+        .single();
+      if (error) {
+        setManualError("Failed to add team. It may already exist or there was a database error.");
+      } else {
+        // Select the new team
+        onTeamSelect({
+          team_number: data.team_number,
+          team_name: data.team_name,
+          team_name_short: data.team_name_short
+        });
+        setManualTeamNumber("");
+        setManualTeamName("");
+        setApiError("");
+      }
+    } catch (err) {
+      setManualError("Unexpected error. Please try again.");
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
   
   
   const searchRef = useRef<HTMLDivElement>(null);
@@ -103,11 +152,10 @@ export default function TeamSearch({
   const searchFromAPI = async (searchTerm: string) => {
     setApiLoading(true);
     setApiError("");
-    
+    let apiFailed = false;
     try {
       // Try FTCScout API first
       const response = await fetch(`https://ftcscout.org/api/teams/search?q=${encodeURIComponent(searchTerm)}`);
-      
       if (response.ok) {
         const data = await response.json();
         if (data && data.length > 0) {
@@ -119,16 +167,16 @@ export default function TeamSearch({
             state_prov: team.state || team.state_prov,
             country: team.country
           }));
-          
           setFilteredTeams(teams.slice(0, 10)); // Limit to 10 results
           setShowDropdown(true);
           return;
         }
+      } else {
+        apiFailed = true;
       }
 
       // Try The Orange Alliance as backup
       const toaResponse = await fetch(`https://theorangealliance.org/api/team?team_name_short=${encodeURIComponent(searchTerm)}`);
-      
       if (toaResponse.ok) {
         const toaData = await toaResponse.json();
         if (toaData && toaData.length > 0) {
@@ -140,23 +188,23 @@ export default function TeamSearch({
             state_prov: team.state_prov,
             country: team.country
           }));
-          
           setFilteredTeams(teams.slice(0, 10));
           setShowDropdown(true);
           return;
         }
+      } else {
+        apiFailed = true;
       }
 
-      // If all APIs fail
-      setApiError("No teams found. Please check your search term.");
+      // If both APIs responded but no teams found
+      setApiError("Team not found. This could mean the team number is new, not registered, or not in the public database yet. If you believe this is an error, please double-check the number or try again later.");
       setFilteredTeams([]);
       setShowDropdown(false);
-      
     } catch (error) {
       console.error('API search failed:', error);
       // Only show API error if no team is currently selected
       if (!selectedTeam) {
-        setApiError("External APIs unavailable. Please try again later.");
+        setApiError("External APIs are unavailable or not responding. Please try again later, or check your internet connection.");
       }
       setFilteredTeams([]);
       setShowDropdown(false);
@@ -216,16 +264,49 @@ export default function TeamSearch({
         </div>
       </div>
 
-      {/* Error Message - Only show if no team is selected */}
+
+      {/* Error Message & Manual Team Entry */}
       {apiError && !selectedTeam && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-2 text-sm text-red-400 flex items-center space-x-2"
-        >
-          <AlertCircle className="w-4 h-4" />
-          <span>{apiError}</span>
-        </motion.div>
+        <div className="mt-2">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-sm text-red-400 flex items-center space-x-2"
+          >
+            <AlertCircle className="w-4 h-4" />
+            <span>{apiError}</span>
+          </motion.div>
+          <form onSubmit={handleManualTeamSubmit} className="mt-4 bg-gray-800 border border-gray-700 rounded-lg p-4 flex flex-col gap-2">
+            <div className="text-xs text-gray-300 mb-1">Can't find your team? Add it below:</div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Team #"
+                value={manualTeamNumber}
+                onChange={e => setManualTeamNumber(e.target.value)}
+                className="w-1/3 px-2 py-1 rounded bg-gray-900 border border-gray-600 text-white text-sm"
+                disabled={manualSubmitting}
+                aria-label="Team #"
+              />
+              <input
+                type="text"
+                placeholder="Team Name"
+                value={manualTeamName}
+                onChange={e => setManualTeamName(e.target.value)}
+                className="flex-1 px-2 py-1 rounded bg-gray-900 border border-gray-600 text-white text-sm"
+                disabled={manualSubmitting}
+              />
+              <button
+                type="submit"
+                className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:bg-gray-700"
+                disabled={manualSubmitting}
+              >
+                {manualSubmitting ? "Adding..." : "Add Team"}
+              </button>
+            </div>
+            {manualError && <div className="text-xs text-red-400 mt-1">{manualError}</div>}
+          </form>
+        </div>
       )}
 
       {/* Dropdown Results */}
