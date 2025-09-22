@@ -40,47 +40,53 @@ export default function TeamSearch({
   const [manualError, setManualError] = useState("");
   // Manual team submit handler
   const handleManualTeamSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     setManualError("");
+    let errorMsg = "";
     if (!manualTeamNumber || !manualTeamName) {
-      setManualError("Please enter both team number and team name.");
-      return;
+      errorMsg = "Please enter both team number and team name.";
     }
     const teamNumberInt = parseInt(manualTeamNumber, 10);
-    if (isNaN(teamNumberInt)) {
-      setManualError("Team number must be a number.");
-      return;
+    if (!errorMsg && isNaN(teamNumberInt)) {
+      errorMsg = "Team number must be a number.";
+    }
+    if (errorMsg) {
+      setManualError(errorMsg);
+      return false;
     }
     setManualSubmitting(true);
-    try {
-      // Insert into database
-      const { data, error } = await supabase
-        .from('ftc_teams_cache')
-        .insert({
-          team_number: teamNumberInt,
-          team_name: manualTeamName,
-          team_name_short: manualTeamName
-        })
-        .select()
-        .single();
-      if (error) {
-        setManualError("Failed to add team. It may already exist or there was a database error.");
-      } else {
-        // Select the new team
-        onTeamSelect({
-          team_number: data.team_number,
-          team_name: data.team_name,
-          team_name_short: data.team_name_short
-        });
-        setManualTeamNumber("");
-        setManualTeamName("");
-        setApiError("");
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('ftc_teams')
+          .insert({
+            team_number: teamNumberInt,
+            team_name: manualTeamName,
+            team_name_short: manualTeamName
+          })
+          .select()
+          .single();
+        if (error) {
+          setManualError(error.message || "Failed to add team. It may already exist or there was a database error.");
+        } else if (!data) {
+          setManualError("No data returned from database. Please try again.");
+        } else {
+          onTeamSelect({
+            team_number: data.team_number,
+            team_name: data.team_name,
+            team_name_short: data.team_name_short
+          });
+          setManualTeamNumber("");
+          setManualTeamName("");
+          setApiError("");
+        }
+      } catch (err) {
+        setManualError("Unexpected error. Please try again.");
+      } finally {
+        setManualSubmitting(false);
       }
-    } catch (err) {
-      setManualError("Unexpected error. Please try again.");
-    } finally {
-      setManualSubmitting(false);
-    }
+    })();
+    return false;
   };
   
   
@@ -276,7 +282,7 @@ export default function TeamSearch({
             <AlertCircle className="w-4 h-4" />
             <span>{apiError}</span>
           </motion.div>
-          <form onSubmit={handleManualTeamSubmit} className="mt-4 bg-gray-800 border border-gray-700 rounded-lg p-4 flex flex-col gap-2">
+          <div className="mt-4 bg-gray-800 border border-gray-700 rounded-lg p-4 flex flex-col gap-2">
             <div className="text-xs text-gray-300 mb-1">Can't find your team? Add it below:</div>
             <div className="flex gap-2">
               <input
@@ -297,7 +303,8 @@ export default function TeamSearch({
                 disabled={manualSubmitting}
               />
               <button
-                type="submit"
+                type="button"
+                onClick={handleManualTeamSubmit}
                 className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:bg-gray-700"
                 disabled={manualSubmitting}
               >
@@ -305,7 +312,7 @@ export default function TeamSearch({
               </button>
             </div>
             {manualError && <div className="text-xs text-red-400 mt-1">{manualError}</div>}
-          </form>
+          </div>
         </div>
       )}
 

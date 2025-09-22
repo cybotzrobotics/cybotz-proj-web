@@ -613,13 +613,15 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
             <div className="mb-8"></div>
             
             <div className="flex flex-wrap gap-4 justify-center">
-              <button
-                onClick={resetQuiz}
-                className="flex items-center space-x-2 px-6 py-3 bg-ftc-blue hover:bg-ftc-blue/80 rounded-lg text-white font-semibold transition-colors"
-              >
-                <RotateCcw className="w-5 h-5" />
-                <span>Try Again</span>
-              </button>
+              {mode !== 'ranked' && (
+                <button
+                  onClick={resetQuiz}
+                  className="flex items-center space-x-2 px-6 py-3 bg-ftc-blue hover:bg-ftc-blue/80 rounded-lg text-white font-semibold transition-colors"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  <span>Try Again</span>
+                </button>
+              )}
               
               <button
                 onClick={onBack}
