@@ -3,6 +3,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../utils/supabaseClient";
 import TeamSearch from "./TeamSearch";
+import TermsAndConditions from "./TermsAndConditions";
 import { UserPlus, LogIn, ArrowLeft } from "lucide-react";
 
 interface FTCTeam {
@@ -17,6 +18,8 @@ interface FTCTeam {
 
 export default function LoginTeam() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [form, setForm] = useState({
     emailOrUsername: "",
     password: "",
@@ -51,6 +54,13 @@ export default function LoginTeam() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // If terms not accepted yet, show terms modal
+    if (!termsAccepted) {
+      setShowTerms(true);
+      return;
+    }
+
     setLoading(true);
     setError("");
     setSuccess("");
@@ -229,10 +239,29 @@ export default function LoginTeam() {
   const resetAllStates = () => {
     setShowForgotPassword(false);
     setShowResendVerification(false);
+    setShowTerms(false);
+    setTermsAccepted(false);
     setError("");
     setSuccess("");
     setResetEmail("");
     setResendEmail("");
+  };
+
+  const handleTermsAccept = () => {
+    setTermsAccepted(true);
+    setShowTerms(false);
+    // Automatically submit the form after terms acceptance
+    const formEvent = new Event('submit') as any;
+    handleRegister(formEvent);
+  };
+
+  const handleTermsDecline = () => {
+    setShowTerms(false);
+    setError("You must accept the terms and conditions to create an account.");
+  };
+
+  const handleTermsClose = () => {
+    setShowTerms(false);
   };
 
   return (
@@ -566,6 +595,14 @@ export default function LoginTeam() {
           <div className="text-green-400 text-sm">{success}</div>
         </motion.div>
       )}
+
+      {/* Terms and Conditions Modal */}
+      <TermsAndConditions
+        isOpen={showTerms}
+        onClose={handleTermsClose}
+        onAccept={handleTermsAccept}
+        onDecline={handleTermsDecline}
+      />
     </div>
   );
 }

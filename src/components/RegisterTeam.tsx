@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../utils/supabaseClient";
+import TermsAndConditions from "./TermsAndConditions";
 
 interface FTCTeam {
   team_number: number;
@@ -26,6 +27,8 @@ export default function RegisterTeam() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [teamSearch, setTeamSearch] = useState("");
   const [filteredTeams, setFilteredTeams] = useState<FTCTeam[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<FTCTeam | null>(null);
@@ -71,6 +74,13 @@ export default function RegisterTeam() {
   // Registration logic
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // If terms not accepted yet, show terms modal
+    if (!termsAccepted) {
+      setShowTerms(true);
+      return;
+    }
+
     setLoading(true);
     setError("");
     setSuccess("");
@@ -129,6 +139,23 @@ export default function RegisterTeam() {
     }
 
     setLoading(false);
+  };
+
+  const handleTermsAccept = () => {
+    setTermsAccepted(true);
+    setShowTerms(false);
+    // Automatically submit the form after terms acceptance
+    const formEvent = new Event('submit') as any;
+    handleRegister(formEvent);
+  };
+
+  const handleTermsDecline = () => {
+    setShowTerms(false);
+    setError("You must accept the terms and conditions to create an account.");
+  };
+
+  const handleTermsClose = () => {
+    setShowTerms(false);
   };
 
   return (
@@ -314,6 +341,14 @@ export default function RegisterTeam() {
               </button>
             </div>
           </div>
+
+          {/* Terms and Conditions Modal */}
+          <TermsAndConditions
+            isOpen={showTerms}
+            onClose={handleTermsClose}
+            onAccept={handleTermsAccept}
+            onDecline={handleTermsDecline}
+          />
         </div>
       </div>
     </div>
