@@ -27,7 +27,10 @@ interface LeaderboardProps {
 export default function Leaderboard({ onBack }: LeaderboardProps) {
   const [individualData, setIndividualData] = useState<IndividualLeaderboard[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [displayedCount, setDisplayedCount] = useState(20)
+  const [hasMoreData, setHasMoreData] = useState(false)
 
   useEffect(() => {
     getCurrentUser()
@@ -51,12 +54,16 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
     setCurrentUser(user)
   }
 
-  const fetchLeaderboardData = async () => {
-    console.log('Fetching leaderboard data...')
-    setLoading(true)
+  const fetchLeaderboardData = async (loadMore = false) => {
+    console.log('Fetching leaderboard data...', loadMore ? 'loading more' : 'initial load')
+    if (!loadMore) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
     
     try {
-      // Get all user profiles
+      // Get all user profiles initially to properly rank everyone
       const { data: profiles, error: profilesError } = await supabase
         .from('user_profiles')
         .select('user_id, username, full_name, team_number, team_name, elo_rating, peak_elo')
@@ -85,9 +92,9 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
 
         // Calculate stats
         const attempts = quizAttempts.length
-        const bestScore = attempts > 0 ? Math.max(...quizAttempts.map(q => q.score)) : 0
-        const bestAccuracy = attempts > 0 ? Math.max(...quizAttempts.map(q => q.accuracy)) : 0
-        const validTimes = quizAttempts.filter(q => q.time_taken != null).map(q => q.time_taken)
+        const bestScore = attempts > 0 ? Math.max(...quizAttempts.map((q: any) => q.score)) : 0
+        const bestAccuracy = attempts > 0 ? Math.max(...quizAttempts.map((q: any) => q.accuracy)) : 0
+        const validTimes = quizAttempts.filter((q: any) => q.time_taken != null).map((q: any) => q.time_taken)
         const bestTime = validTimes.length > 0 ? Math.min(...validTimes) : 0
         const lastAttempt = attempts > 0 ? quizAttempts[quizAttempts.length - 1].created_at : null
 
@@ -114,8 +121,8 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
       // Sort by ELO rating (descending), then by peak ELO (descending), then by best score (descending)
       leaderboardData.sort((a, b) => {
         // Get ELO ratings from the profiles
-        const userA = profiles.find(p => p.user_id === a.id)
-        const userB = profiles.find(p => p.user_id === b.id)
+        const userA = profiles.find((p: any) => p.user_id === a.id)
+        const userB = profiles.find((p: any) => p.user_id === b.id)
         
         const eloA = userA?.elo_rating || 1000
         const eloB = userB?.elo_rating || 1000
@@ -133,12 +140,24 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
       })
 
       console.log('Final leaderboard data:', leaderboardData)
-      setIndividualData(leaderboardData)
+      
+      if (!loadMore) {
+        // Initial load - set all data but only display first 20
+        setIndividualData(leaderboardData)
+        setDisplayedCount(Math.min(20, leaderboardData.length))
+        setHasMoreData(leaderboardData.length > 20)
+      } else {
+        // Load more - just update the displayed count
+        const newDisplayedCount = Math.min(displayedCount + 20, leaderboardData.length)
+        setDisplayedCount(newDisplayedCount)
+        setHasMoreData(newDisplayedCount < leaderboardData.length)
+      }
 
     } catch (error) {
       console.error('Error fetching leaderboard data:', error)
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
@@ -354,7 +373,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                         <Star className="w-5 h-5 mr-2 text-red-400" />
                         Other Champions
                       </h3>
-                      {individualData.slice(3).map((player, index) => (
+                      {individualData.slice(3, displayedCount).map((player, index) => (
                         <motion.div
                           key={player.id}
                           initial={{ x: -100, opacity: 0 }}
@@ -389,6 +408,32 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                           </div>
                         </motion.div>
                       ))}
+                      
+                      {/* Load More Button */}
+                      {hasMoreData && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 1.2 }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => fetchLeaderboardData(true)}
+                          disabled={loadingMore}
+                          className="w-full mt-6 p-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl border border-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loadingMore ? (
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                              <span>Loading More...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center space-x-2">
+                              <span>Load More Players</span>
+                              <span className="text-red-200">({individualData.length - displayedCount} remaining)</span>
+                            </div>
+                          )}
+                        </motion.button>
+                      )}
                     </div>
                   )}
 

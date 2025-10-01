@@ -74,22 +74,28 @@ const fetchTeamInfo = async (teamNumber: number) => {
 export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
   const [teamData, setTeamData] = useState<TeamLeaderboard[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loadingTeamInfo, setLoadingTeamInfo] = useState(false)
+  const [displayedCount, setDisplayedCount] = useState(20)
+  const [hasMoreData, setHasMoreData] = useState(false)
 
   useEffect(() => {
     fetchTeamLeaderboardData()
   }, [])
 
-  const fetchTeamLeaderboardData = async () => {
-    console.log('Fetching team leaderboard data...')
-    setLoading(true)
+  const fetchTeamLeaderboardData = async (loadMore = false) => {
+    console.log('Fetching team leaderboard data...', loadMore ? 'loading more' : 'initial load')
+    if (!loadMore) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
     
     try {
-      // Fetch team leaderboard
+      // Fetch team leaderboard - removing the limit to get all teams for proper ranking
       const { data: teamLeaderboardData, error: teamError } = await supabase
         .from('team_leaderboard')
         .select('*')
-        .limit(50)
 
       console.log('Team leaderboard data:', teamLeaderboardData)
       console.log('Team leaderboard error:', teamError)
@@ -109,7 +115,7 @@ export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
           // Group by team
           const teamStats = new Map()
           
-          profilesData.forEach(profile => {
+          profilesData.forEach((profile: any) => {
             const teamNumber = profile.team_number
             if (!teamStats.has(teamNumber)) {
               teamStats.set(teamNumber, {
@@ -125,35 +131,64 @@ export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
             
             const stats = teamStats.get(teamNumber)
             stats.team_size++
-            stats.total_elo += profile.elo_rating
-            stats.max_elo = Math.max(stats.max_elo, profile.elo_rating)
-            stats.min_elo = Math.min(stats.min_elo, profile.elo_rating)
-            stats.total_peak_elo += profile.peak_elo
+            stats.total_elo += profile.elo_rating || 1000
+            stats.max_elo = Math.max(stats.max_elo, profile.elo_rating || 1000)
+            stats.min_elo = Math.min(stats.min_elo, profile.elo_rating || 1000)
+            stats.total_peak_elo += profile.peak_elo || 1000
             stats.active_members++
           })
           
           // Convert to array and calculate averages
-          const tempTeamLeaderboard = Array.from(teamStats.values())
-            .map(team => ({
-              ...team,
-              avg_elo: Math.ceil(team.total_elo / team.team_size), // Round up as requested
-              rank: 0
-            }))
-            .sort((a, b) => b.avg_elo - a.avg_elo)
-            .map((team, index) => ({ ...team, rank: index + 1 }))
+          const manualTeamData = Array.from(teamStats.values()).map((stats: any, index: number) => ({
+            rank: index + 1, // Temporary rank, will be recalculated after sorting
+            team_number: stats.team_number,
+            team_size: stats.team_size,
+            avg_elo: Math.round(stats.total_elo / stats.team_size),
+            max_elo: stats.max_elo,
+            min_elo: stats.min_elo === 9999 ? 0 : stats.min_elo,
+            total_peak_elo: stats.total_peak_elo,
+            active_members: stats.active_members
+          }))
           
-          console.log('Created temporary team leaderboard:', tempTeamLeaderboard)
-          setTeamData(tempTeamLeaderboard)
+          // Sort by avg_elo and reassign ranks
+          manualTeamData.sort((a, b) => b.avg_elo - a.avg_elo)
+          manualTeamData.forEach((team, index) => {
+            team.rank = index + 1
+          })
+          
+          console.log('Manual team data created:', manualTeamData)
+          
+          if (!loadMore) {
+            setTeamData(manualTeamData)
+            setDisplayedCount(Math.min(20, manualTeamData.length))
+            setHasMoreData(manualTeamData.length > 20)
+          } else {
+            const newDisplayedCount = Math.min(displayedCount + 20, manualTeamData.length)
+            setDisplayedCount(newDisplayedCount)
+            setHasMoreData(newDisplayedCount < manualTeamData.length)
+          }
           
           // Fetch team info from FTC Scout API
-          fetchTeamInfoForAll(tempTeamLeaderboard)
+          fetchTeamInfoForAll(!loadMore ? manualTeamData : teamData)
         } else {
           setTeamData([])
+          setDisplayedCount(0)
+          setHasMoreData(false)
         }
       } else {
-        setTeamData(teamLeaderboardData || [])
-        // Fetch team info from FTC Scout API
-        fetchTeamInfoForAll(teamLeaderboardData || [])
+        console.log('Using team_leaderboard view data')
+        
+        if (!loadMore) {
+          setTeamData(teamLeaderboardData)
+          setDisplayedCount(Math.min(20, teamLeaderboardData.length))
+          setHasMoreData(teamLeaderboardData.length > 20)
+          // Fetch team info from FTC Scout API
+          fetchTeamInfoForAll(teamLeaderboardData)
+        } else {
+          const newDisplayedCount = Math.min(displayedCount + 20, teamLeaderboardData.length)
+          setDisplayedCount(newDisplayedCount)
+          setHasMoreData(newDisplayedCount < teamLeaderboardData.length)
+        }
       }
 
     } catch (error) {
@@ -161,6 +196,7 @@ export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
       setTeamData([])
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
@@ -494,7 +530,7 @@ export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
                     </motion.h2>
                     
                     <div className="grid gap-4 max-w-4xl mx-auto">
-                      {teamData.slice(3).map((team, index) => {
+                      {teamData.slice(3, displayedCount).map((team, index) => {
                         const tier = getTeamEloTier(team.avg_elo);
                         return (
                           <motion.div
@@ -539,6 +575,32 @@ export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
                           </motion.div>
                         );
                       })}
+                      
+                      {/* Load More Button */}
+                      {hasMoreData && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 2.2 }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => fetchTeamLeaderboardData(true)}
+                          disabled={loadingMore}
+                          className="w-full mt-6 p-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl border border-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loadingMore ? (
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                              <span>Loading More Teams...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center space-x-2">
+                              <span>Load More Teams</span>
+                              <span className="text-red-200">({teamData.length - displayedCount} remaining)</span>
+                            </div>
+                          )}
+                        </motion.button>
+                      )}
                     </div>
                   </motion.div>
                 )}
