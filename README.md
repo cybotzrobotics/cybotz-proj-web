@@ -193,7 +193,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - **FIRST Tech Challenge** for the amazing robotics program
-- **Team CyBotz** for the innovative project idea
+- **Team Cybotz** for the innovative project idea
 - **Three.js Community** for the incredible 3D graphics tools
 - **Next.js Team** for the powerful React framework
 
