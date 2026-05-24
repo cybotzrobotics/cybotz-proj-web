@@ -585,15 +585,14 @@ export default function LoginPage() {
               whileHover={{ color: "#ef4444" }}
               className="transition-colors duration-200"
             >
-              Powered by Cybotz
+              Developed by Cybotz
             </motion.span>
-            <span className="text-gray-600">•</span>
-            <motion.span 
-              whileHover={{ color: "#3b82f6" }}
-              className="transition-colors duration-200"
-            >
-              Developed by Aarya Raut
-            </motion.span>
+            {/*<motion.span */}
+            {/*  whileHover={{ color: "#3b82f6" }}*/}
+            {/*  className="transition-colors duration-200"*/}
+            {/*>*/}
+            {/*  Developed by Aarya Raut*/}
+            {/*</motion.span>*/}
           </div>
         </div>
       </motion.footer>

@@ -160,8 +160,10 @@ export default function TeamSearch({
     setApiError("");
     let apiFailed = false;
     try {
+      //https://api.ftcscout.org/rest/v1/teams/
+      //https://api.ftcscout.org/rest/v1/teams/search?searchText=2
       // Try FTCScout API first
-      const response = await fetch(`https://ftcscout.org/api/teams/search?q=${encodeURIComponent(searchTerm)}`);
+      const response = await fetch(`https://api.ftcscout.org/rest/v1/teams/search?searchText=${encodeURIComponent(searchTerm)}`);
       if (response.ok) {
         const data = await response.json();
         if (data && data.length > 0) {
@@ -180,27 +182,27 @@ export default function TeamSearch({
       } else {
         apiFailed = true;
       }
-
-      // Try The Orange Alliance as backup
-      const toaResponse = await fetch(`https://theorangealliance.org/api/team?team_name_short=${encodeURIComponent(searchTerm)}`);
-      if (toaResponse.ok) {
-        const toaData = await toaResponse.json();
-        if (toaData && toaData.length > 0) {
-          const teams = toaData.map((team: any) => ({
-            team_number: team.team_number,
-            team_name: team.team_name_long || team.team_name,
-            team_name_short: team.team_name_short,
-            city: team.city,
-            state_prov: team.state_prov,
-            country: team.country
-          }));
-          setFilteredTeams(teams.slice(0, 10));
-          setShowDropdown(true);
-          return;
-        }
-      } else {
-        apiFailed = true;
-      }
+      //
+      // // Try The Orange Alliance as backup
+      // const toaResponse = await fetch(`https://theorangealliance.org/api/team?team_name_short=${encodeURIComponent(searchTerm)}`);
+      // if (toaResponse.ok) {
+      //   const toaData = await toaResponse.json();
+      //   if (toaData && toaData.length > 0) {
+      //     const teams = toaData.map((team: any) => ({
+      //       team_number: team.team_number,
+      //       team_name: team.team_name_long || team.team_name,
+      //       team_name_short: team.team_name_short,
+      //       city: team.city,
+      //       state_prov: team.state_prov,
+      //       country: team.country
+      //     }));
+      //     setFilteredTeams(teams.slice(0, 10));
+      //     setShowDropdown(true);
+      //     return;
+      //   }
+      // } else {
+      //   apiFailed = true;
+      // }
 
       // If both APIs responded but no teams found
       setApiError("Team not found. This could mean the team number is new, not registered, or not in the public database yet. If you believe this is an error, please double-check the number or try again later.");
