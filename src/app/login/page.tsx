@@ -405,8 +405,8 @@ export default function LoginPage() {
             onClick={() => router.push('/')}
             className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors group"
           >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            <span className="font-cyber">Back to Home</span>
+            {/*<ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />*/}
+            {/*<span className="font-cyber">Back to Home</span>*/}
           </motion.button>
           
           <motion.div 
@@ -415,7 +415,7 @@ export default function LoginPage() {
             transition={{ delay: 0.2, type: "spring" }}
             className="text-2xl font-cyber font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent"
           >
-            FTC QUIZ
+            FTC - QUIZCLASH
           </motion.div>
         </div>
       </motion.div>

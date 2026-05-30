@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Clock, CheckCircle, XCircle, RotateCcw, Zap, Trophy, User } from 'lucide-react'
 import { supabase } from '@/utils/supabaseClient'
@@ -21,6 +21,33 @@ interface QuizInterfaceProps {
   onBack: () => void
   isGuest?: boolean
   onComplete?: () => void
+}
+
+function getCookieKey(season: string, mode: string) {
+  return `quiz_progress_${season}_${mode}`.replace(/\s+/g, '_')
+}
+
+function saveCookieProgress(season: string, mode: string, data: object) {
+  const key = getCookieKey(season, mode)
+  const expires = new Date()
+  expires.setDate(expires.getDate() + (mode === 'ranked' ? 1 : 7))
+  document.cookie = `${key}=${encodeURIComponent(JSON.stringify(data))}; expires=${expires.toUTCString()}; path=/; SameSite=Strict`
+}
+
+function loadCookieProgress(season: string, mode: string): Record<string, any> | null {
+  const key = getCookieKey(season, mode)
+  const match = document.cookie.split(';').find(c => c.trim().startsWith(`${key}=`))
+  if (!match) return null
+  try {
+    return JSON.parse(decodeURIComponent(match.trim().slice(key.length + 1)))
+  } catch {
+    return null
+  }
+}
+
+function clearCookieProgress(season: string, mode: string) {
+  const key = getCookieKey(season, mode)
+  document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`
 }
 
 // Mock questions for fallback
@@ -73,6 +100,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [eloChange, setEloChange] = useState<{old_elo: number, new_elo: number, total_elo_change: number} | null>(null)
   const [reviewExplanation, setReviewExplanation] = useState('')
   const [showReviewForm, setShowReviewForm] = useState(false)
+  const restoredFromCookie = useRef(false)
 
   // Load user and questions on component mount
   useEffect(() => {
@@ -195,18 +223,55 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
             category: q.category || 'General',
             difficulty: q.difficulty || 'medium'
           }))
-          
-          // Shuffle questions for practice mode
-          if (mode === 'practice') {
-            // Fisher-Yates shuffle algorithm
-            for (let i = formattedQuestions.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [formattedQuestions[i], formattedQuestions[j]] = [formattedQuestions[j], formattedQuestions[i]];
+
+          // Load saved progress from cookie
+          let savedProgress = loadCookieProgress(season, mode)
+
+          // Invalidate ranked cookie if it's from a previous day
+          if (savedProgress && mode === 'ranked') {
+            const today = new Date().toISOString().split('T')[0]
+            if (savedProgress.date !== today) {
+              clearCookieProgress(season, mode)
+              savedProgress = null
             }
           }
-          
+
+          if (mode === 'practice') {
+            if (savedProgress?.questionOrder?.length > 0) {
+              // Restore saved shuffle order
+              const idMap = new Map(formattedQuestions.map(q => [q.id, q]))
+              // @ts-ignore
+              const restored = (savedProgress.questionOrder as string[])
+                .map(id => idMap.get(id))
+                .filter((q): q is Question => !!q)
+              // @ts-ignore
+              const savedIds = new Set<string>(savedProgress.questionOrder)
+              const newOnes = formattedQuestions.filter(q => !savedIds.has(q.id))
+              formattedQuestions = [...restored, ...newOnes]
+            } else {
+              // Fisher-Yates shuffle
+              for (let i = formattedQuestions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [formattedQuestions[i], formattedQuestions[j]] = [formattedQuestions[j], formattedQuestions[i]];
+              }
+            }
+          }
+
           console.log(`${mode === 'practice' ? 'Shuffled' : 'Ordered'} questions (${formattedQuestions.length} total):`, formattedQuestions)
           setQuestions(formattedQuestions)
+
+          // Restore progress position, score, and answers from cookie
+          const hasProgress = savedProgress &&
+            (savedProgress.questionIndex > 0 ||
+              (Array.isArray(savedProgress.answers) && savedProgress.answers.some((a: any) => a !== null)))
+          if (hasProgress) {
+            restoredFromCookie.current = true
+            setCurrentQuestionIndex(savedProgress!.questionIndex || 0)
+            setScore(savedProgress!.score || 0)
+            if (Array.isArray(savedProgress!.answers) && savedProgress!.answers.length === formattedQuestions.length) {
+              setAnswers(savedProgress!.answers)
+            }
+          }
         } else {
           // No questions available
           console.log('No questions available')
@@ -223,9 +288,9 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
     loadData()
   }, [mode, isGuest, season])
 
-  // Update answers array when questions change
+  // Initialize answers when questions load — skip if progress was restored from cookie
   useEffect(() => {
-    if (questions.length > 0) {
+    if (questions.length > 0 && !restoredFromCookie.current) {
       setAnswers(new Array(questions.length).fill(null))
     }
   }, [questions])
@@ -387,26 +452,45 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
     setSelectedAnswer(answerIndex)
     setShowExplanation(true)
     setIsTimerActive(false)
-    
+
     const newAnswers = [...answers]
     newAnswers[currentQuestionIndex] = answerIndex
     setAnswers(newAnswers)
-    
+
+    const newScore = answerIndex === currentQuestion?.correctAnswer ? score + 1 : score
     if (answerIndex === currentQuestion?.correctAnswer) {
-      setScore(score + 1)
+      setScore(newScore)
     }
+
+    saveCookieProgress(season, mode, {
+      date: new Date().toISOString().split('T')[0],
+      questionIndex: currentQuestionIndex,
+      score: newScore,
+      answers: newAnswers,
+      ...(mode === 'practice' ? { questionOrder: questions.map(q => q.id) } : {})
+    })
   }
 
   const nextQuestion = async () => {
     if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1)
+      const nextIndex = currentQuestionIndex + 1
+      setCurrentQuestionIndex(nextIndex)
       setSelectedAnswer(null)
       setShowExplanation(false)
       setTimeLeft(30)
       setIsTimerActive(true)
+
+      saveCookieProgress(season, mode, {
+        date: new Date().toISOString().split('T')[0],
+        questionIndex: nextIndex,
+        score,
+        answers,
+        ...(mode === 'practice' ? { questionOrder: questions.map(q => q.id) } : {})
+      })
     } else {
+      clearCookieProgress(season, mode)
       setQuizComplete(true)
-      
+
       // Save quiz attempt to database
       await saveQuizAttempt()
       
@@ -427,6 +511,8 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   }
 
   const resetQuiz = () => {
+    clearCookieProgress(season, mode)
+    restoredFromCookie.current = false
     setCurrentQuestionIndex(0)
     setSelectedAnswer(null)
     setShowExplanation(false)
@@ -641,18 +727,12 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
     <div className="min-h-screen p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={onBack}
-            className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back</span>
-          </button>
-          
+        <div className="grid grid-cols-3 items-center mb-8">
+          <div />
+
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white mb-2">{season} Quiz</h1>
-            <div className="flex items-center space-x-4 text-sm text-gray-400">
+            <div className="flex items-center justify-center space-x-4 text-sm text-nowrap text-gray-400 ">
               {mode === 'ranked' && (
                 <>
                   <span>Question {currentQuestionIndex + 1} of {questions.length}</span>
@@ -666,21 +746,21 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
                 </>
               )}
               <span className={getDifficultyColor(currentQuestion?.difficulty || 3)}>
-                {getDifficultyText(currentQuestion?.difficulty || 3).toUpperCase()}
+                Difficulty: {getDifficultyText(currentQuestion?.difficulty || 3).toUpperCase()}
               </span>
               <span>•</span>
               <span>{currentQuestion?.category}</span>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-4">
+
+          <div className="flex items-center justify-end space-x-4">
             <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
               timeLeft <= 10 ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-gray-300'
             }`}>
               <Clock className="w-4 h-4" />
               <span className="font-mono">{formatTime(timeLeft)}</span>
             </div>
-            
+
             <div className="text-right">
               <div className="text-2xl font-bold text-neon-green">{score}</div>
               <div className="text-xs text-gray-400">Score</div>
