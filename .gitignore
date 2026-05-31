@@ -29,6 +29,9 @@ build/
 # Vercel
 .vercel
 
+#questions
+./scripts
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
