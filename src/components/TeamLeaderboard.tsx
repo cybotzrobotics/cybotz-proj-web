@@ -16,6 +16,7 @@ import {
   Shield,
   Target
 } from 'lucide-react'
+import CookieFooter from "@/components/CookieFooter";
 
 interface TeamLeaderboard {
   rank: number
@@ -511,6 +512,7 @@ export default function TeamLeaderboard({ onBack }: TeamLeaderboardProps) {
             )}
           </div>
         </div>
+        <CookieFooter />
       </div>
     </div>
   )
