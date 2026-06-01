@@ -7,6 +7,7 @@ import { supabase } from '@/utils/supabaseClient'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import Leaderboard from '@/components/Leaderboard'
 import TeamLeaderboard from '@/components/TeamLeaderboard'
+import CookieFooter from '@/components/CookieFooter'
 import { 
   Brain, 
   Trophy, 
@@ -220,6 +221,7 @@ export default function DashboardPage() {
         <div className="relative z-10">
           <Leaderboard onBack={() => setCurrentView('dashboard')} />
         </div>
+        <CookieFooter />
       </div>
     )
   }
@@ -232,6 +234,7 @@ export default function DashboardPage() {
         <div className="relative z-10">
           <TeamLeaderboard onBack={() => setCurrentView('dashboard')} />
         </div>
+        <CookieFooter />
       </div>
     )
   }
@@ -469,6 +472,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      <CookieFooter />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/utils/supabaseClient'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import QuizInterface from '@/components/QuizInterface'
+import CookieFooter from '@/components/CookieFooter'
 import { ArrowLeft, Trophy, BookOpen, Calendar, Users, Clock } from 'lucide-react'
 
 function QuizPageContent() {
@@ -233,7 +234,7 @@ function QuizPageContent() {
         </div>
 
         {/* Mode Selection */}
-        <div className="relative z-10 p-6">
+        <div className="relative z-10 p-6 pb-8">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl font-cyber font-bold text-center text-white mb-8">
               Choose Your Quiz Mode
@@ -363,6 +364,7 @@ function QuizPageContent() {
             </div>
           </div>
         </div>
+        <CookieFooter />
       </div>
     )
   }
@@ -417,6 +419,7 @@ function QuizPageContent() {
           onComplete={handleQuizComplete}
         />
       </div>
+      <CookieFooter />
     </div>
   )
 }
