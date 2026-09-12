@@ -200,28 +200,26 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
         >
           {/* Header */}
           <motion.div
-            {...fadeUp(0.05)}
-            className="flex items-center justify-between mb-8"
+              {...fadeUp(0.05)}
+              className="relative flex items-center mb-8 mt-3"
           >
             <motion.button
-              onClick={onBack}
-              whileHover={{ scale: 1.04, x: -4 }}
-              whileTap={{ scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className="flex items-center space-x-3 text-gray-300 hover:text-white transition-colors bg-gray-800/80 backdrop-blur-sm px-6 py-3 rounded-full border border-gray-600/50 hover:border-red-400/50"
+                onClick={onBack}
+                whileHover={{ scale: 1.04, x: -4 }}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                className="w-fit shrink-0 flex items-center space-x-3 text-gray-300 hover:text-white transition-colors bg-gray-800/80 backdrop-blur-sm px-6 py-3 rounded-full border border-gray-600/50 hover:border-red-400/50"
             >
               <ArrowLeft className="w-5 h-5" />
               <span className="font-medium">Back to Dashboard</span>
             </motion.button>
 
-            <div className="flex-1 text-center">
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent mb-2">
+            <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none">
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent mb-2 whitespace-nowrap">
                 ELO LEADERBOARD
               </h1>
               <p className="text-gray-300 text-lg font-medium">Ranked by Skill Rating</p>
             </div>
-
-            <div className="w-32" />
           </motion.div>
 
           {/* Main Leaderboard Content */}
