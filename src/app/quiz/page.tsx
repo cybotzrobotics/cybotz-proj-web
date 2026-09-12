@@ -412,7 +412,7 @@ function QuizPageContent() {
       {/* Quiz Interface */}
       <div className="relative z-10">
         <QuizInterface
-          season="2025-2026"
+          season="2026-2027"
           mode={selectedMode}
           onBack={handleBack}
           isGuest={false}

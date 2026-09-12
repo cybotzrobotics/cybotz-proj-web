@@ -172,7 +172,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
         } else {
           // Get practice questions (not in today's ranked set)
           const { data, error: dbError } = await supabase
-            .rpc('get_practice_questions')
+            .rpc('get_practice_questions', {target_date : new Date().toISOString()})
           
           questionsData = data
           error = dbError
