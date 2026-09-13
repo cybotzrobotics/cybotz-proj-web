@@ -86,7 +86,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(mode === 'ranked' ? 30 : 60) // Different time limits
+  const [timeLeft, setTimeLeft] = useState(30) // Different time limits
   const [isTimerActive, setIsTimerActive] = useState(mode === 'ranked') // Only timer for ranked
   const [quizComplete, setQuizComplete] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -478,7 +478,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
       setSelectedAnswer(null)
       setShowExplanation(false)
       setTimeLeft(30)
-      setIsTimerActive(true)
+      setIsTimerActive(mode === 'ranked')
 
       saveCookieProgress(season, mode, {
         date: new Date().toISOString().split('T')[0],
@@ -518,7 +518,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
     setShowExplanation(false)
     setScore(0)
     setTimeLeft(30)
-    setIsTimerActive(true)
+    setIsTimerActive(mode === 'ranked')
     setQuizComplete(false)
     setAnswers(new Array(questions.length).fill(null))
     setIsNewBestScore(false)
@@ -754,12 +754,12 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           </div>
 
           <div className="flex items-center justify-end space-x-4">
-            <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
-              timeLeft <= 10 ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-gray-300'
-            }`}>
-              <Clock className="w-4 h-4" />
-              <span className="font-mono">{formatTime(timeLeft)}</span>
-            </div>
+            {/*<div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${*/}
+            {/*  timeLeft <= 10 ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-gray-300'*/}
+            {/*}`}>*/}
+              {/*<Clock className="w-4 h-4" />*/}
+              {/*<span className="font-mono">{formatTime(timeLeft)}</span>*/}
+            {/*</div>*/}
 
             <div className="text-right">
               <div className="text-2xl font-bold text-neon-green">{score}</div>
