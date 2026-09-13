@@ -97,7 +97,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [startTime] = useState(Date.now())
   const [loading, setLoading] = useState(true)
   const [submittingReview, setSubmittingReview] = useState(false)
-  const [eloChange, setEloChange] = useState<{old_elo: number, new_elo: number, total_elo_change: number} | null>(null)
+  const [eloChange, setEloChange] = useState<{old_elo: number, new_elo: number, elo_change: number} | null>(null)
   const [reviewExplanation, setReviewExplanation] = useState('')
   const [showReviewForm, setShowReviewForm] = useState(false)
   const restoredFromCookie = useRef(false)
@@ -643,20 +643,20 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
               Quiz Complete!
             </h2>
             
-            {isNewBestScore && (
-              <motion.div
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", duration: 0.8 }}
-                className="mb-6 p-4 bg-gradient-to-r from-yellow-900/50 to-orange-900/50 border border-yellow-500 rounded-lg"
-              >
-                <div className="flex items-center justify-center space-x-2 text-yellow-400">
-                  <Trophy className="w-6 h-6" />
-                  <span className="font-bold text-lg">NEW BEST SCORE!</span>
-                  <Trophy className="w-6 h-6" />
-                </div>
-              </motion.div>
-            )}
+            {/*{isNewBestScore && (*/}
+            {/*  <motion.div*/}
+            {/*    initial={{ scale: 0, rotate: -180 }}*/}
+            {/*    animate={{ scale: 1, rotate: 0 }}*/}
+            {/*    transition={{ type: "spring", duration: 0.8 }}*/}
+            {/*    className="mb-6 p-4 bg-gradient-to-r from-yellow-900/50 to-orange-900/50 border border-yellow-500 rounded-lg"*/}
+            {/*  >*/}
+            {/*    <div className="flex items-center justify-center space-x-2 text-yellow-400">*/}
+            {/*      <Trophy className="w-6 h-6" />*/}
+            {/*      <span className="font-bold text-lg">NEW BEST SCORE!</span>*/}
+            {/*      <Trophy className="w-6 h-6" />*/}
+            {/*    </div>*/}
+            {/*  </motion.div>*/}
+            {/*)}*/}
             
             <div className="text-6xl font-bold mb-4">
               <span className="bg-gradient-to-r from-neon-green to-ftc-orange bg-clip-text text-transparent">
@@ -664,13 +664,13 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
               </span>
             </div>
             
-            {bestScore !== null && (
-              <div className="mb-4 text-gray-400">
-                <p className="text-sm">
-                  Your Best: {bestScore}/{questions.length} ({Math.round((bestScore / questions.length) * 100)}%)
-                </p>
-              </div>
-            )}
+            {/*{bestScore !== null && (*/}
+            {/*  <div className="mb-4 text-gray-400">*/}
+            {/*    <p className="text-sm">*/}
+            {/*      Your Best: {bestScore}/{questions.length} ({Math.round((bestScore / questions.length) * 100)}%)*/}
+            {/*    </p>*/}
+            {/*  </div>*/}
+            {/*)}*/}
             
             <div className="text-2xl text-gray-300 mb-4">
               {Math.round((score / questions.length) * 100)}% Correct
@@ -689,8 +689,8 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
                   <span className="text-gray-300">{eloChange.old_elo}</span>
                   <span className="text-gray-500">→</span>
                   <span className="text-white font-bold">{eloChange.new_elo}</span>
-                  <span className={`font-bold ${eloChange.total_elo_change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    ({eloChange.total_elo_change >= 0 ? '+' : ''}{eloChange.total_elo_change})
+                  <span className={`font-bold ${eloChange.new_elo - eloChange.old_elo >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ({eloChange.new_elo - eloChange.old_elo >= 0 ? '+' : '-'}{eloChange.elo_change})
                   </span>
                 </div>
               </motion.div>

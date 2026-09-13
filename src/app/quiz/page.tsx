@@ -345,7 +345,7 @@ function QuizPageContent() {
                   <div className="space-y-3 text-gray-300">
                     <div className="flex items-center justify-center space-x-2">
                       <BookOpen className="w-4 h-4" />
-                      <span>50+ questions • Available anytime</span>
+                      <span>Available anytime</span>
                     </div>
                     <div className="flex items-center justify-center space-x-2">
                       <Calendar className="w-4 h-4" />
