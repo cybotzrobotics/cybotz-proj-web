@@ -754,12 +754,12 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           </div>
 
           <div className="flex items-center justify-end space-x-4">
-            {/*<div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${*/}
-            {/*  timeLeft <= 10 ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-gray-300'*/}
-            {/*}`}>*/}
-              {/*<Clock className="w-4 h-4" />*/}
-              {/*<span className="font-mono">{formatTime(timeLeft)}</span>*/}
-            {/*</div>*/}
+            {mode == "ranked" && <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+              timeLeft <= 10 ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-gray-300'
+            }`}>
+              <Clock className="w-4 h-4" />
+              <span className="font-mono">{formatTime(timeLeft)}</span>
+            </div>}
 
             <div className="text-right">
               <div className="text-2xl font-bold text-neon-green">{score}</div>
