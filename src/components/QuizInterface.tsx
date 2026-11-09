@@ -50,6 +50,8 @@ function clearCookieProgress(season: string, mode: string) {
   document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`
 }
 
+const QUESTION_TIME_MS = 30_000
+
 // Mock questions for fallback
 const mockQuestions: Question[] = [
   {
@@ -86,7 +88,7 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(30) // Different time limits
+  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_MS / 1000) // Different time limits
   const [isTimerActive, setIsTimerActive] = useState(mode === 'ranked') // Only timer for ranked
   const [quizComplete, setQuizComplete] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -101,9 +103,46 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
   const [reviewExplanation, setReviewExplanation] = useState('')
   const [showReviewForm, setShowReviewForm] = useState(false)
   const restoredFromCookie = useRef(false)
+  // Pausable question timer: remaining time is persisted, and the clock only runs while the tab is visible
+  const remainingMs = useRef<number>(QUESTION_TIME_MS)
+  const runningSince = useRef<number | null>(null)
+  const lastProgress = useRef<Record<string, any> | null>(null)
+
+  const getRemainingMs = () =>
+    runningSince.current !== null
+      ? Math.max(0, remainingMs.current - (Date.now() - runningSince.current))
+      : remainingMs.current
+
+  // Save progress to the cookie and remember it so the timer can re-save with updated remaining time
+  const saveProgress = (data: Record<string, any>) => {
+    lastProgress.current = data
+    saveCookieProgress(season, mode, data)
+  }
+
+  const persistRemaining = () => {
+    if (mode !== 'ranked' || !lastProgress.current || lastProgress.current.currentAnswered) return
+    saveProgress({ ...lastProgress.current, remainingMs: getRemainingMs() })
+  }
+
+  const pauseTimer = () => {
+    remainingMs.current = getRemainingMs()
+    runningSince.current = null
+  }
+
+  const resumeTimer = () => {
+    if (runningSince.current === null) runningSince.current = Date.now()
+  }
+
+  const startNewQuestionTimer = () => {
+    remainingMs.current = QUESTION_TIME_MS
+    runningSince.current = null
+  }
 
   // Load user and questions on component mount
   useEffect(() => {
+    // Ignore results from a superseded load (e.g. React Strict Mode double-mount) so a stale
+    // run can't clobber state — including the running timer — after the live run has started it
+    let cancelled = false
     const loadData = async () => {
       try {
         // Load user data
@@ -211,6 +250,8 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           }
         }
 
+        if (cancelled) return
+
         // Process the questions data (whether from RPC or fallback)
         if (questionsData && questionsData.length > 0) {
           // Convert database format to component format
@@ -263,14 +304,45 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
           // Restore progress position, score, and answers from cookie
           const hasProgress = savedProgress &&
             (savedProgress.questionIndex > 0 ||
+              savedProgress.currentAnswered ||
+              typeof savedProgress.remainingMs === 'number' ||
               (Array.isArray(savedProgress.answers) && savedProgress.answers.some((a: any) => a !== null)))
+          const restoredIndex = hasProgress ? (savedProgress!.questionIndex || 0) : 0
+          const restoredAnswers: (number | null)[] =
+            hasProgress && Array.isArray(savedProgress!.answers) && savedProgress!.answers.length === formattedQuestions.length
+              ? savedProgress!.answers
+              : new Array(formattedQuestions.length).fill(null)
+
           if (hasProgress) {
             restoredFromCookie.current = true
-            setCurrentQuestionIndex(savedProgress!.questionIndex || 0)
+            setCurrentQuestionIndex(restoredIndex)
             setScore(savedProgress!.score || 0)
-            if (Array.isArray(savedProgress!.answers) && savedProgress!.answers.length === formattedQuestions.length) {
-              setAnswers(savedProgress!.answers)
-            }
+            setAnswers(restoredAnswers)
+          }
+
+          if (hasProgress && savedProgress!.currentAnswered) {
+            // Question was already answered (or timed out) — show its result, don't let it be re-answered
+            lastProgress.current = savedProgress
+            setSelectedAnswer(restoredAnswers[restoredIndex] ?? null)
+            setShowExplanation(true)
+            setIsTimerActive(false)
+          } else if (mode === 'ranked') {
+            // Resume the saved remaining time, or start fresh for a new question
+            const remaining = hasProgress && typeof savedProgress!.remainingMs === 'number'
+              ? Math.max(0, Math.min(QUESTION_TIME_MS, savedProgress!.remainingMs))
+              : QUESTION_TIME_MS
+            remainingMs.current = remaining
+            // Don't stop an already-running clock; just restart its reference point
+            if (runningSince.current !== null) runningSince.current = Date.now()
+            setTimeLeft(Math.ceil(remaining / 1000))
+            saveProgress({
+              date: new Date().toISOString().split('T')[0],
+              questionIndex: restoredIndex,
+              score: hasProgress ? (savedProgress!.score || 0) : 0,
+              answers: restoredAnswers,
+              currentAnswered: false,
+              remainingMs: remaining,
+            })
           }
         } else {
           // No questions available
@@ -281,11 +353,12 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
         console.error('Error loading data:', error)
         setQuestions([])
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     } // Close loadData function
 
     loadData()
+    return () => { cancelled = true }
   }, [mode, isGuest, season])
 
   // Initialize answers when questions load — skip if progress was restored from cookie
@@ -297,12 +370,50 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
 
   const currentQuestion = questions[currentQuestionIndex]
 
-  // Timer effect
+  // Timer — only runs while the question is live AND the tab is visible.
+  // Remaining time is persisted so reloads/leaving resume where you left off instead of resetting.
   useEffect(() => {
-    if (isTimerActive && timeLeft > 0 && !showExplanation && !loading) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
-      return () => clearTimeout(timer)
-    } else if (timeLeft === 0 && !showExplanation) {
+    if (loading || showExplanation || !isTimerActive) return
+
+    const tick = () => {
+      const remaining = getRemainingMs()
+      const secs = Math.ceil(remaining / 1000)
+      setTimeLeft(secs)
+      // Persist roughly once per second
+      if (secs !== Math.ceil((lastProgress.current?.remainingMs ?? QUESTION_TIME_MS) / 1000)) {
+        persistRemaining()
+      }
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        resumeTimer()
+      } else {
+        pauseTimer()
+        persistRemaining()
+      }
+    }
+    const onPageHide = () => {
+      pauseTimer()
+      persistRemaining()
+    }
+
+    if (document.visibilityState === 'visible') resumeTimer()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
+    const interval = setInterval(tick, 250)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', onPageHide)
+      pauseTimer()
+    }
+  }, [isTimerActive, showExplanation, loading, currentQuestionIndex])
+
+  // Timeout handler
+  useEffect(() => {
+    if (!loading && !showExplanation && isTimerActive && timeLeft === 0) {
       handleAnswer(null)
     }
   }, [timeLeft, isTimerActive, showExplanation, loading])
@@ -462,11 +573,13 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
       setScore(newScore)
     }
 
-    saveCookieProgress(season, mode, {
+    pauseTimer()
+    saveProgress({
       date: new Date().toISOString().split('T')[0],
       questionIndex: currentQuestionIndex,
       score: newScore,
       answers: newAnswers,
+      currentAnswered: true,
       ...(mode === 'practice' ? { questionOrder: questions.map(q => q.id) } : {})
     })
   }
@@ -477,14 +590,17 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
       setCurrentQuestionIndex(nextIndex)
       setSelectedAnswer(null)
       setShowExplanation(false)
-      setTimeLeft(30)
+      setTimeLeft(QUESTION_TIME_MS / 1000)
       setIsTimerActive(mode === 'ranked')
+      startNewQuestionTimer()
 
-      saveCookieProgress(season, mode, {
+      saveProgress({
         date: new Date().toISOString().split('T')[0],
         questionIndex: nextIndex,
         score,
         answers,
+        currentAnswered: false,
+        ...(mode === 'ranked' ? { remainingMs: QUESTION_TIME_MS } : {}),
         ...(mode === 'practice' ? { questionOrder: questions.map(q => q.id) } : {})
       })
     } else {
@@ -517,7 +633,9 @@ export default function QuizInterface({ season, mode, onBack, isGuest = false, o
     setSelectedAnswer(null)
     setShowExplanation(false)
     setScore(0)
-    setTimeLeft(30)
+    setTimeLeft(QUESTION_TIME_MS / 1000)
+    startNewQuestionTimer()
+    lastProgress.current = null
     setIsTimerActive(mode === 'ranked')
     setQuizComplete(false)
     setAnswers(new Array(questions.length).fill(null))
